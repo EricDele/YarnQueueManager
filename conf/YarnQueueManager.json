@@ -1,0 +1,73 @@
+{
+  "root": "yarn.scheduler.capacity.root",
+  "pattern": "root.env.arbo.queue.property",
+  "general_config": {
+    "property": "accessible-node-labels",
+    "property": "acl_administer_jobs",
+    "property": "acl_administer_queue",
+    "property": "capacity",
+    "property": "default.minimum-user-limit-percent",
+    "property": "maximum-applications",
+    "property": "maximum-am-resource-percent",
+    "property": "maximum-applications",
+    "property": "node-locality-delay",
+    "property": "queues",
+    "property": "resource-calculator"
+  },
+  "xls-config": {
+    "topologie":{
+        "C":{"property" : "arbo",               "columnTitle" : "Arbo",                  "default" : ""},
+        "D":{"property" : "queueName",          "columnTitle" : "Queues",                "default" : ""},
+        "E":{"property" : "capacity",           "columnTitle" : "Configured capacity %", "default" : "1"},
+        "F":{"property" : "maximum-capacity",   "columnTitle" : "Maximum capacity %",    "default" : "1"},
+        "I":{"property" : "user-limit-factor",  "columnTitle" : "user-limit-factor",     "default" : ""},
+        "J":{"property" : "acl_administer_jobs","columnTitle" : "Ranger User",           "default" : ""},
+        "L":{"property" : "ordering-policy",    "columnTitle" : "Ordering Policy",       "default" : "fifo"},
+        "M":{"property" : "state",              "columnTitle" : "State",                 "default" : "RUNNING"}
+      },
+    "sheet-name" : "Queues Elastic Fix",
+    "row-titles" : "4",
+    "queues-name-column" : "4",
+    "cellule-origine" : {"row": "11", "col": "3"},
+    "nb-groupes-arbo" : "1",
+    "row-max" : "82" 
+  },
+  
+  "xml2xls": {
+    "acl_administer_jobs": {
+      "column": "I",
+      "columnName": "Ranger User",
+      "default": ""
+    },
+    "acl_submit_applications": {
+      "column": "",
+      "columnName": "",
+      "default": "*"
+    },
+    "capacity": {
+      "column": "F",
+      "columnName": "Configured capacity %",
+      "default": "1"
+    },
+    "maximum-capacity": {
+      "column": "G",
+      "columnName": "Maximum capacity %",
+      "default": ""
+    },
+    "ordering-policy": {
+      "column": "K",
+      "columnName": "Ordering policy",
+      "default": "fifo"
+    },
+    "user-limit-factor": {
+      "column": "H",
+      "columnName": "User limit factor",
+      "default": "1"
+    },
+    "state": {
+      "column": "L",
+      "columnName": "State",
+      "default": "RUNNING"
+    }
+  }
+}
