@@ -22,6 +22,7 @@
 # --------------------------------------------#
 from __future__ import print_function
 import sys
+import re
 import csv
 import json
 import pprint
@@ -38,23 +39,30 @@ global vg_fileName
 global vg_arguments
 global vg_delimiter
 global vg_xmlcontent
-global vg_config_root
-global vg_xml2xls
+global vg_configPreRoot
+global vg_configRoot
 global vg_xlsConfig
 global vg_queues
 vg_queues = defaultdict(dict)
 
 DEFAULT = '\033[39m'
+BLACK = '\033[30m'
 RED = '\033[91m'
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
+BLUE = '\033[94m'
 CYAN = '\033[96m'
+BACK_RED = '\033[41m'
+BACK_GREEN = '\033[42m'
 BACK_BLUE = '\033[44m'
+BACK_CYAN = '\033[46m'
+BACK_GRAY = '\033[47m'
 BACK_DEFAULT = '\033[49m'
 
 # --------------------------------------------#
 #                 Classe Queue                #
 # --------------------------------------------#
+
 
 class Queues():
     """Object for Queues"""
@@ -62,9 +70,12 @@ class Queues():
     def __init__(self):
         self.queues = defaultdict(dict)
 
-    def addQueueValue(self, configXLS, arborescence, queueName, propertyName, value):
+    def addQueueValue(self, arborescence, queueName, propertyName, value):
         try:
-            self.queues[arborescence + "." + queueName][propertyName] = value
+            if(arborescence != ""):
+                self.queues['.'.join((arborescence, queueName))][propertyName] = value
+            else:
+                self.queues[queueName][propertyName] = value
         except Exception as e:
             raise e
         # if propertyName in configXLS:
@@ -77,36 +88,111 @@ class Queues():
         #     # Erreur de configuration
         #     print(RED + "ERROR : La propriété " + propertyName + " n'est pas présente dans le fichier de configuration" + DEFAULT)
 
+    # --------------------------------------------#
+    #       Création du fichier XLS à parti de    #
+    #                   self                      #
+    # --------------------------------------------#
+
+    def queuesToXLS(self, fileXLS, configXLS):
+        print(BACK_GRAY + BLACK + "\nCreating XLS file :" + DEFAULT + BACK_DEFAULT + " " + fileXLS)
+        # On créé le fichier excel
+        workbook = xlsxwriter.Workbook(fileXLS)
+        # On créé la feuille
+        worksheet = workbook.add_worksheet(configXLS['sheet-name'])
+        # On créé le format pour le titre
+        titleFormat = workbook.add_format({'bold': True, 'font_name': 'calibri', 'font_color': 'white', 'align': 'center', 'valign': 'vcenter', 'bg_color': '#198A8A'})
+        worksheet.set_row(int(configXLS['row-titles']), 45, titleFormat)
+        # On écrit les titres de colonnes
+        for columnLetter in sorted(configXLS['topologie'].keys()):
+            # test si la colonne doit exister dans le fichier xls
+            if 'columnTitle' in configXLS['topologie'][columnLetter]:
+                worksheet.write(int(configXLS['row-titles']), self.lettreVersCol(columnLetter), configXLS['topologie'][columnLetter]['columnTitle'], titleFormat)
+        # on écrit le root
+        worksheet.write(int(configXLS['row-titles']) + 1, 1, 'root')
+        ligne = int(configXLS['cellule-origine']['row'])
+        column = int(configXLS['cellule-origine']['col'])
+        # On inverse le dictionnaire de la configuration pour se placer avec la propriété
+        revertedConf = self.revertConfigurationDict(configXLS['topologie'])
+        # on itère sur les queues triées
+        for queueName in sorted(self.queues.keys()):
+
+            # TODOOOOOOOOOOO : Gérer les arborescences
+
+            # on écrit le nom de la queue
+            worksheet.write(ligne, column, queueName)
+            # on écrit les valeurs dans les bonnes colonnes
+            for propertyName in self.queues[queueName]:
+                # On teste si la propriété est attendue dans le fichier XLS
+                if propertyName in revertedConf:
+                    worksheet.write(ligne, self.lettreVersCol(revertedConf[propertyName]['column']), self.queues[queueName][propertyName])
+            ligne += 1
+        # Fermeture du fichier excel
+        workbook.close()
+
+    # --------------------------------------------#
+    #       Affiche la configuration des queues   #
+    # --------------------------------------------#
+
     def showQueue(self):
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(dict(self.queues))
 
+    # --------------------------------------------#
+    #    Inverse le dictionnaire de configuration #
+    # --------------------------------------------#
+    @staticmethod
+    def revertConfigurationDict(configDict):
+        tempoDict = {}
+        for columns in configDict:
+            tempoDict[configDict[columns]['property']] = {"column": columns, "default": configDict[columns]['default']}
+        return tempoDict
+
+    # --------------------------------------------#
+    #       Converti la LETTRE vers code ASCII    #
+    # --------------------------------------------#
+
     @staticmethod
     def lettreVersNum(lettre):
         return ord(lettre)
+
+    # --------------------------------------------#
+    #       Converti la LETTRE en COLONNE NUM     #
+    # --------------------------------------------#
 
     @staticmethod
     def lettreVersCol(lettre):
         if(len(lettre) == 1):
             return (ord(lettre.upper()) - ord('A')) + 1
 
+    # --------------------------------------------#
+    #      Converti la COLONNE NUM en LETTRE      #
+    # --------------------------------------------#
+
     @staticmethod
     def colVersLettre(column):
         if(type(column) == int):
-            return chr(column + ord('A') - 1) 
+            return chr(column + ord('A') - 1)
+
+    # --------------------------------------------#
+    #       Converti le code ASCII en LETTRE      #
+    # --------------------------------------------#
 
     @staticmethod
     def numVersLettre(chiffre):
         if (chiffre >= ord('a') and chiffre <= ord('z')) or (chiffre >= ord('A') and chiffre <= ord('Z')):
             return chr(chiffre)
 
+    # --------------------------------------------#
+    #               Lit le fichier XLS            #
+    # --------------------------------------------#
+
     def readXlsFile(self, fileXLS, configXLS):
+        print(BACK_GRAY + BLACK + "\nReading XLS file :" + DEFAULT + BACK_DEFAULT + " " + fileXLS)
         wb = load_workbook(fileXLS, data_only=True)
         ws = wb.get_sheet_by_name(configXLS['sheet-name'])
         row = int(configXLS['cellule-origine']['row'])
         col = int(configXLS['cellule-origine']['col'])
         rowMax = int(configXLS['row-max'])
-        arborescence = []
         # contrôle de cohérence sur les titres de colonnes
         for column in configXLS['topologie']:
             if(ws[column + configXLS['row-titles']].value != configXLS['topologie'][column]['columnTitle']):
@@ -127,7 +213,7 @@ class Queues():
             elif(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
                 # Queue trouvée
                 queueName = str(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value)
-                #print('Queue trouvée :' + queueName)
+                # print('Queue trouvée :' + queueName)
                 # On itère sur la ligne avec les colonnes configurées
                 for column in sorted(configXLS['topologie']):
                     # memorisation de la valeur de la cellule
@@ -136,11 +222,11 @@ class Queues():
                     if(column.upper() != self.colVersLettre(int(configXLS['queues-name-column'])) and column.upper() > self.colVersLettre(int(configXLS['queues-name-column']))):
                         # on a joute la donnée si elle est présente, sinon on ajoute la valeur par défaut
                         if(cellValue != 'None'):
-                            self.addQueueValue(configXLS, arboActuelle, queueName, configXLS['topologie'][column]['property'], cellValue)
+                            self.addQueueValue(arboActuelle, queueName, configXLS['topologie'][column]['property'], cellValue)
                             sys.stdout.write(GREEN + configXLS['topologie'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
                         # valeur par defaut
                         elif(configXLS['topologie'][column]['default'] != ""):
-                            self.addQueueValue(configXLS, arboActuelle, queueName, configXLS['topologie'][column]['property'], configXLS['topologie'][column]['default'])
+                            self.addQueueValue(arboActuelle, queueName, configXLS['topologie'][column]['property'], configXLS['topologie'][column]['default'])
                             sys.stdout.write(YELLOW + configXLS['topologie'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
                         # pas de valeur par defaut, on ajoute pas
                         else:
@@ -154,6 +240,42 @@ class Queues():
                 print("")
             row += 1
 
+    # --------------------------------------------#
+    #               Lit le fichier XML            #
+    # --------------------------------------------#
+
+    def readXmlFile(self, fileXML, configXML, configPreRoot, configRoot):
+        print(BACK_GRAY + BLACK + "\nReading XML file :" + DEFAULT + BACK_DEFAULT + " " + fileXML)
+        # On prépare les expression régulières pour matcher root ou preroot
+        regPreRoot = re.compile(r"^" + re.escape(configPreRoot))
+        regRoot = re.compile(r"^" + re.escape(configRoot))
+        tree = etree.parse(fileXML)
+        # On itère sur les données du fichier XML
+        for prop in tree.iter('property'):
+            # On split la chaine en éléments
+            # calcul du nombre d'élément de la clé
+            # yarn.scheduler.capacity.root.SROM.capacity
+            # 1   .2        .3       .4   .5   .6
+            elements = prop.find('name').text.split('.')
+            nbElements = len(elements)
+            if(regRoot.match(prop.find('name').text) is not None):
+                # On a trouvé une propriété avec le root
+                if(nbElements > 5):
+                    # On ajoute la queue avec son arbo et sa valeur
+                    # On fait un join des éléments de l'arborescence, on extrait la queue, la propriété et la valeur
+                    self.addQueueValue('.'.join(elements[4:-2]), str(elements[-2]), str(elements[-1]), prop.find('value').text)
+                else:
+                    print(str(nbElements) + " elements : " + prop.find('name').text)
+            elif(regPreRoot.match(prop.find('name').text) is not None):
+                # On a trouvé une propriété sans le root
+                if(nbElements == 4):
+                    print(str(nbElements) + " elements : " + prop.find('name').text)
+                elif(nbElements == 5):
+                    print(str(nbElements) + " elements : " + prop.find('name').text)
+                else:
+                    print(BACK_RED + BLACK + "Propriété non traitée :" + DEFAULT + BACK_DEFAULT + " " + prop.find('name').text)
+            else:
+                print(BACK_RED + BLACK + "Propriété non traitée :" + DEFAULT + BACK_DEFAULT + " " + prop.find('name').text)
 
 # --------------------------------------------#
 #                     Code                    #
@@ -162,6 +284,7 @@ class Queues():
 # --------------------------------------------#
 #               Affiche la version            #
 # --------------------------------------------#
+
 
 def programVersion():
     print("Version : 0.0.1")
@@ -182,154 +305,14 @@ def exitWithError(errorText):
 # --------------------------------------------#
 
 def fileReaderJSON(fileName):
-    global vg_config_root
-    global vg_xml2xls
+    global vg_configPreRoot
+    global vg_configRoot
     global vg_xlsConfig
     with open(fileName) as jsonFile:
         jsonData = json.load(jsonFile)
-    vg_config_root = jsonData['root']
-    vg_xml2xls = jsonData['xml2xls']
+    vg_configRoot = jsonData['root']
+    vg_configPreRoot = jsonData['pre-root']
     vg_xlsConfig = jsonData['xls-config']
-
-
-# --------------------------------------------#
-#               Lit le fichier CSV            #
-# --------------------------------------------#
-
-def fileReaderCSV(fileName, delimiterChar):
-    global vg_arguments
-    print("\nReading CSV file : " + fileName)
-    try:
-        fichierCsv = csv.DictReader(open(fileName, "rb"), delimiter=delimiterChar, quotechar='"')
-        if vg_arguments['verbose']:
-            print("CSV file content : ")
-            for ligne in fichierCsv:
-                print(ligne)
-    except csv.Error as e:
-        exitWithError('file %s, line %d: %s' % (fileName, ligne.line_num, e))
-
-
-# --------------------------------------------#
-#               Lit le fichier XML            #
-# --------------------------------------------#
-
-def fileReaderXML(fileName):
-    global vg_xmlcontent
-    global vg_arguments
-    print("\nReading XML file : " + fileName)
-    vg_xmlcontent = {}
-    tree = etree.parse(fileName)
-    for prop in tree.iter('property'):
-        vg_xmlcontent[prop.find('name').text] = prop.find('value').text
-        # print prop.find('name').text + '=' + prop.find('value').text
-    if vg_arguments['verbose']:
-        print("XML file content : ")
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(vg_xmlcontent)
-
-
-# --------------------------------------------#
-#           Ecrit le fichier XLS              #
-# --------------------------------------------#
-
-def fileWriterXLS(nbElementsMax, fileName):
-    global vg_queues
-    print("Création du fichier excel " + fileName)
-    pp = pprint.PrettyPrinter(indent=4)
-    pp.pprint(vg_queues)
-    # On fabrique le dictionnaire pour convertir la lettre de colonne
-    # en décallage numérique
-    columnNumber = {}
-    for i in range(0, 26):
-        columnNumber[chr(ord('A') + i)] = i
-    ligne = 0
-    colonne = 0
-    # On créé le fichier excel
-    workbook = xlsxwriter.Workbook(fileName)
-    worksheet = workbook.add_worksheet()
-    # On écrit les titres de colonnes
-    for propertyName in vg_xml2xls:
-        # test si la colonne doit exister dans le fichier xls
-        if vg_xml2xls[propertyName]['column']:
-            worksheet.write(ligne, columnNumber[vg_xml2xls[propertyName]['column']], vg_xml2xls[propertyName]['columnName'])
-    # on écrit le root
-    worksheet.write(1, colonne, 'root')
-    # on itère sur les queues triées
-    for queueName in sorted(vg_queues.keys()):
-        ligne += 1
-        colonne = 2
-        # on écrit le nom de la queue
-        worksheet.write(ligne, colonne, queueName)
-        # on écrit les valeurs dans les bonnes colonnes
-        for value in vg_queues[queueName]:
-            worksheet.write(ligne, columnNumber[value], vg_queues[queueName][value])
-    # Fermeture du fichier excel
-    workbook.close()
-
-
-# --------------------------------------------#
-#           Insert dans la config du CSV      #
-#           une colonne avec sa valeur        #
-#           en créant un dictionnaire         #
-# --------------------------------------------#
-
-def insertQueueValueForCSV(queueName, propertyName, value):
-    global vg_xml2xls
-    global vg_queues
-    print("Création du dictionnaire avec les données lues")
-    if propertyName in vg_xml2xls:
-        # test si la colonne doit exister dans le fichier xls
-        if vg_xml2xls[propertyName]['column']:
-            vg_queues[queueName][vg_xml2xls[propertyName]['column']] = value
-        else:
-            print("WARNING : La propriété " + propertyName + " n'a pas de colonne de renseignée dans le fichier de configuration")
-    else:
-        # Erreur de configuration
-        print("ERROR : La propriété " + propertyName + " n'est pas présente dans le fichier de configuration")
-
-
-# --------------------------------------------#
-#           Analyse la configuration          #
-# --------------------------------------------#
-
-def analyseConfigurationFromXML():
-    global vg_xmlcontent
-    global vg_arguments
-    global vg_config_root
-    global vg_queues
-    print("Analyze XML buffer")
-    # Constitution d'un tableau des configurations des queues
-    #   queues[queueName] = [configName:value, configName:value]
-    # On va mémoriser le nombre max d'élélments
-    nbElementsMax = 0
-    for cle, value in sorted(vg_xmlcontent.iteritems()):
-        # calcul du nombre d'élément de la clé
-        # yarn.scheduler.capacity.root.SROM.capacity
-        # 1   .2        .3       .4   .5   .6
-        print(cle + "->" + value)
-        elements = cle.split('.')
-        nbElement = len(elements)
-        if nbElement > nbElementsMax:
-            # On mémorise le nombre max d'élélments
-            nbElementsMax = nbElement
-        if nbElement == 4:
-            # SI on a 4 éléments, c'est une variable générale
-            print(str(nbElement) + ": property : " + elements[nbElement - 1])
-        elif nbElement == 5:
-            # SI on a 5 éléments, c'est une variable par defaut des queues
-            print(str(nbElement) + ": " + elements[nbElement - 2] + " : property : " + elements[nbElement - 1])
-        elif nbElement > 5:
-            # Si on a plus de 5 éléments, donc des queues à 1 ou X niveaux
-            # On itère sur les sous niveaux si ils existent
-            # for x in range(4, len(elements) - 1):     -----------------------------------------
-            #  sys.stdout.write(elements[x] + " - ")    ------- TRAITER LES SOUS QUEUES ICI -----
-            # print(" -> " + elements[len(elements) - 1])
-            # on insert cette valeur dans la config des queues
-            insertQueueValueForCSV(elements[4], elements[len(elements) - 1], value) is not True
-        else:
-            # impossible, on affiche une erreur
-            print("ERROR : Ligne en erreur, nombre d'éléments (" + nbElement + ") dans la clé, incohérents : " + cle)
-    return nbElementsMax
 
 
 # --------------------------------------------#
@@ -340,7 +323,6 @@ def parseCommandLine():
     global vg_arguments
     parser = argparse.ArgumentParser(
         description='Yarn Queue Manager for setting or reading queues configuration', prog='YarnQueueManager')
-    parser.add_argument('-f', '--file', type=str, help='CSV file name processed')
     parser.add_argument('-x', '--xml', type=str, help='XML file name processed')
     parser.add_argument('-e', '--excel', type=str, help='Excel file name for output')
     parser.add_argument('-d', '--delimiter', type=str, help='file name processed')
@@ -355,23 +337,17 @@ def parseCommandLine():
         programVersion()
         sys.exit
 
-    if vg_arguments['file'] is not None and vg_arguments['delimiter'] is not None:
-        if len(vg_arguments['delimiter']) == 1:
-            queues = Queues()
-            queues.readXlsFile(vg_arguments['excel'], vg_xlsConfig)
-            queues.showQueue()
-            # fileReaderCSV(vg_arguments['file'], vg_arguments['delimiter'])
-        else:
-            print("Arguments : \n" + str(vg_arguments))
-            exitWithError("invalid arguments : delimiter must be a character.")
+    if vg_arguments['xml'] is None and vg_arguments['excel'] is not None:
+        # Lecture du fichier XLS
+        queues = Queues()
+        queues.readXlsFile(vg_arguments['excel'], vg_xlsConfig)
+        queues.showQueue()
     elif vg_arguments['xml'] is not None and vg_arguments['excel'] is not None:
         # Lecture du fichier XML contenant la configuration en place
-        fileReaderXML(vg_arguments['xml'])
-        # Analyse la configuration XML
-        nbElementsMax = analyseConfigurationFromXML()
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(vg_queues)
-        fileWriterXLS(nbElementsMax, vg_arguments['excel'])
+        queues = Queues()
+        queues.readXmlFile(vg_arguments['xml'], vg_xlsConfig, vg_configPreRoot, vg_configRoot)
+        queues.showQueue()
+        queues.queuesToXLS(vg_arguments['excel'], vg_xlsConfig)
     else:
         print("Arguments : \n" + str(vg_arguments))
         exitWithError("invalid arguments : file and delimiter must be defined.")
@@ -385,6 +361,6 @@ def main():
 
 
 if __name__ == '__main__':
-    reload(sys)  
+    reload(sys)
     sys.setdefaultencoding('utf8')
     main()

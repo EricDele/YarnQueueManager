@@ -1,4 +1,5 @@
 {
+  "pre-root": "yarn.scheduler.capacity",
   "root": "yarn.scheduler.capacity.root",
   "pattern": "root.env.arbo.queue.property",
   "general_config": {
@@ -30,44 +31,14 @@
     "queues-name-column" : "4",
     "cellule-origine" : {"row": "11", "col": "3"},
     "nb-groupes-arbo" : "1",
-    "row-max" : "82" 
+    "row-max" : "85" 
   },
-  
-  "xml2xls": {
-    "acl_administer_jobs": {
-      "column": "I",
-      "columnName": "Ranger User",
-      "default": ""
-    },
-    "acl_submit_applications": {
-      "column": "",
-      "columnName": "",
-      "default": "*"
-    },
-    "capacity": {
-      "column": "F",
-      "columnName": "Configured capacity %",
-      "default": "1"
-    },
-    "maximum-capacity": {
-      "column": "G",
-      "columnName": "Maximum capacity %",
-      "default": ""
-    },
-    "ordering-policy": {
-      "column": "K",
-      "columnName": "Ordering policy",
-      "default": "fifo"
-    },
-    "user-limit-factor": {
-      "column": "H",
-      "columnName": "User limit factor",
-      "default": "1"
-    },
-    "state": {
-      "column": "L",
-      "columnName": "State",
-      "default": "RUNNING"
-    }
+  "ambari-config": {
+    "user": "ambari",
+    "url" : "hostname.domain",
+    "port": "8080",
+    "api" : "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
+    "tag" : "tag",
+    "service_config_version_note" : "service_config_version_note"
   }
 }
