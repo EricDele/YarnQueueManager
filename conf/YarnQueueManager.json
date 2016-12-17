@@ -1,22 +1,34 @@
 {
-  "pre-root": "yarn.scheduler.capacity",
-  "root": "yarn.scheduler.capacity.root",
-  "pattern": "root.env.arbo.queue.property",
-  "general_config": {
-    "property": "accessible-node-labels",
-    "property": "acl_administer_jobs",
-    "property": "acl_administer_queue",
-    "property": "capacity",
-    "property": "default.minimum-user-limit-percent",
-    "property": "maximum-applications",
-    "property": "maximum-am-resource-percent",
-    "property": "maximum-applications",
-    "property": "node-locality-delay",
-    "property": "queues",
-    "property": "resource-calculator"
+  "configuration" : {
+    "general" : "general",
+    "pre-root": "yarn.scheduler.capacity",
+    "root":     "yarn.scheduler.capacity.root",
+    "root-name":"root",
+    "pattern":  "root.env.arbo.queue.property"
+  },
+  "properties-config": {
+    "accessible-node-labels" : "string",
+    "acl_administer_jobs" : "string",
+    "acl_administer_queue" : "string",
+    "acl_submit_applications" : "string",
+    "arbo" : "string",
+    "capacity" : "int",
+    "minimum-user-limit-percent" : "string",
+    "maximum-applications" : "string",
+    "maximum-am-resource-percent" : "int",
+    "maximum-applications" : "string",
+    "maximum-capacity" : "int",
+    "minimum-user-limit-percent" : "int",
+    "node-locality-delay" : "string",
+    "queues" : "string",
+    "ordering-policy" : "string",
+    "queueName" : "string",
+    "resource-calculator" : "string",
+    "state" : "string",
+    "user-limit-factor" : "int"
   },
   "xls-config": {
-    "topologie":{
+    "topology":{
         "C":{"property" : "arbo",               "columnTitle" : "Arbo",                  "default" : ""},
         "D":{"property" : "queueName",          "columnTitle" : "Queues",                "default" : ""},
         "E":{"property" : "capacity",           "columnTitle" : "Configured capacity %", "default" : "1"},
