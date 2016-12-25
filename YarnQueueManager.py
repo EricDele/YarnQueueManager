@@ -27,6 +27,7 @@ import json
 import pprint
 import argparse
 import xlsxwriter
+import requests
 from openpyxl import load_workbook
 from lxml import etree
 from collections import defaultdict
@@ -37,13 +38,10 @@ from collections import defaultdict
 global vg_fileName
 global vg_arguments
 global vg_delimiter
-global vg_xmlcontent
 global vg_configuration
-global vg_configRoot
 global vg_configProperties
 global vg_xlsConfig
-global vg_queues
-vg_queues = defaultdict(dict)
+global vg_ambariConfig
 
 DEFAULT = '\033[39m'
 BLACK = '\033[30m'
@@ -68,33 +66,44 @@ BACK_DEFAULT = '\033[49m'
 class Queues():
     """Object for Queues"""
 
-    def __init__(self):
+    def __init__(self, configuration, properties, ambari):
+        # Queues parameters
         self.queues = defaultdict(dict)
+        # General configuration from config file
+        self.configuration = configuration
+        # Properties list from config file
+        self.properties = properties
+        # Ambari configuration from config file
+        self.ambari = ambari
+        # Boolean to know if we could change something or just check
+        self.check = True
 
     def addQueueValue(self, arborescence, queueName, propertyName, value):
         try:
+            if(propertyName == self.configuration['arbo-queues-property']):
+                # we have a property for an arborescence with the queues names so
+                # we are on a arborescence head
+                self.queues[queueName]['arborescence'] = queueName
+                self.queues[queueName]['arborescence-head'] = 'yes'
             if(arborescence != ""):
+                # we have a property for a queue within arborescence
                 self.queues['.'.join((arborescence, queueName))][propertyName] = value
+                self.queues['.'.join((arborescence, queueName))]['queue-name'] = queueName
+                self.queues['.'.join((arborescence, queueName))]['arborescence'] = arborescence
             else:
+                # we have a prperty for a queue that is not in an arborescence
                 self.queues[queueName][propertyName] = value
+                self.queues[queueName]['queue-name'] = queueName
+                self.queues[queueName]['arborescence'] = ''
         except Exception as e:
             raise e
-        # if propertyName in configXLS:
-        #     # test si la colonne doit exister dans le fichier xls
-        #     if configXLS[propertyName]['column']:
-        #         self.queues[queueName][configXLS[propertyName]['column']] = value
-        #     else:
-        #         print(YELLOW + "WARNING : La propriété " + propertyName + " n'a pas de colonne de renseignée dans le fichier de configuration" + DEFAULT)
-        # else:
-        #     # Erreur de configuration
-        #     print(RED + "ERROR : La propriété " + propertyName + " n'est pas présente dans le fichier de configuration" + DEFAULT)
 
     # --------------------------------------------#
     #       Create the XLS file from the Queues   #
     #                   object                    #
     # --------------------------------------------#
 
-    def queuesToXLS(self, fileXLS, configXLS, configuration):
+    def queuesToXLS(self, fileXLS, configXLS):
         print(BACK_GRAY + BLACK + "\nCreating XLS file :" + DEFAULT + BACK_DEFAULT + " " + fileXLS)
         # Create the XLS file
         workbook = xlsxwriter.Workbook(fileXLS)
@@ -109,14 +118,14 @@ class Queues():
             if 'columnTitle' in configXLS['topology'][columnLetter]:
                 worksheet.write(int(configXLS['row-titles']), self.lettreVersCol(columnLetter), configXLS['topology'][columnLetter]['columnTitle'], titleFormat)
         # Write the root
-        worksheet.write(int(configXLS['row-titles']) + 1, 1, str(configuration['root-name']))
+        worksheet.write(int(configXLS['row-titles']) + 1, 1, str(self.configuration['root-name']))
         ligne = int(configXLS['cellule-origine']['row'])
         column = int(configXLS['cellule-origine']['col'])
         # Revert topology's configuration for property access easier
         revertedConf = self.revertConfigurationDict(configXLS['topology'])
         # Iterat on sorted queues
         for queueName in sorted(self.queues.keys()):
-            if(queueName != configuration['root-name'] and queueName != configuration['general']):
+            if(queueName != self.configuration['root-name'] and queueName != self.configuration['general']):
 
                 # TODOOOOOOOOOOO : arborescences management
 
@@ -133,15 +142,72 @@ class Queues():
         workbook.close()
 
     # --------------------------------------------#
-    #       Affiche la configuration des queues   #
+    #        Inject the queue configuration       #
+    #               in ambari rest api            #
     # --------------------------------------------#
 
-    def showQueue(self):
+    def putQueuesInAmbari(self):
+        url = self.ambari['url'] + ":" + self.ambari['port'] + self.ambari['api']['putQueuesInAmbari']
+        headers = defaultdict(dict)
+        properties = defaultdict(dict)
+        # Iterate the Queues object by queueName to create the properties
+        for queueName in sorted(self.queues.keys()):
+            if(self.configuration['root-name'] in self.queues[queueName].keys() and 'arborescence-head' not in self.queues[queueName].keys()):
+                # We have a queue that is in the root
+                # Iterat the properties for this queue
+                for propertyName in sorted(self.queues[queueName].keys()):
+                    # set the property if this is a property accepted in the configuration
+                    if(propertyName in self.properties.keys()):
+                        if(self.queues[queueName]['arborescence'] != ""):
+                            properties['.'.join([self.configuration['root'], self.queues[queueName]['arborescence'], self.queues[queueName]['queue-name'], propertyName])] = self.queues[queueName][propertyName]
+                        else:
+                            properties['.'.join([self.configuration['root'], self.queues[queueName]['queue-name'], propertyName])] = self.queues[queueName][propertyName]
+        desired_config = []
+        desired_config.append(defaultdict(dict))
+        desired_config[0]['type'] = "capacity-scheduler"
+        desired_config[0]['tag'] = "VARIABLE_POUR_YARN_SCHEDULER_TAG"
+        desired_config[0]['service_config_version_note'] = "VARIABLE_POUR_YARN_SCHEDULER_VERSION_NOTE"
+        desired_config[0]['properties'] = properties
+        clusters = defaultdict(dict)
+        clusters['desired_config'] = desired_config
+        data = defaultdict(dict)
+        data['Clusters'] = clusters
+        for key in self.ambari['headers']:
+            headers[key] = self.ambari['headers'][key]
+        r = requests.put(url, headers=headers, data=data)
+        print(r.text)
+        pp = pprint.PrettyPrinter(indent=2, width=120, depth=5)
+        pp.pprint(json.dumps(data))
+
+    # --------------------------------------------#
+    #             Set the check boolean           #
+    # --------------------------------------------#
+
+    def setCheck(self, check):
+        self.check = check
+
+    # --------------------------------------------#
+    #          Show the Queues configuration      #
+    # --------------------------------------------#
+
+    def showQueues(self):
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(dict(self.queues))
 
     # --------------------------------------------#
-    #    Inverse le dictionnaire de configuration #
+    #     Pretty print the Queues configuration   #
+    # --------------------------------------------#
+
+    def prettyPrintQueues(self):
+        print(BACK_GRAY + BLACK + "\nQueues configuration" + DEFAULT + BACK_DEFAULT)
+        for queueName in sorted(self.queues.keys()):
+            print(BACK_BLUE + CYAN + "Queue" + DEFAULT + BACK_DEFAULT + " : " + CYAN + queueName + DEFAULT)
+            for propertyName in sorted(self.queues[queueName]):
+                # print('{0:{1}} {2: <20}'.format(propertyName, str(maxPropertyLenght), self.queues[queueName][propertyName]))
+                print('  {: <40} {: <20}'.format(GREEN + propertyName + DEFAULT, self.queues[queueName][propertyName]))
+
+    # --------------------------------------------#
+    #    Revert the topology configuration Dict   #
     # --------------------------------------------#
     @staticmethod
     def revertConfigurationDict(configDict):
@@ -212,10 +278,15 @@ class Queues():
             elif(ws.cell(row=row, column=col).value is not None and ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is None):
                 # New arborescence
                 actualArborescence = ws.cell(row=row, column=col).value
+                # We add the arborescence-head key in the queue
+                self.addQueueValue(actualArborescence, actualArborescence, self.configuration['arbo-queues-property'], '')
+                self.addQueueValue(actualArborescence, actualArborescence, 'arborescence-head', 'yes')
                 print(BACK_BLUE + CYAN + "New ARBORESCENCE : " + actualArborescence + DEFAULT + BACK_DEFAULT)
             elif(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
                 # Find a Queue
                 queueName = str(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value)
+                # Add the root key for this queue
+                self.addQueueValue(actualArborescence, queueName, self.configuration['root-name'], 'yes')
                 # Iterate on the line with the confiured columns
                 for column in sorted(configXLS['topology']):
                     # Store the cell value
@@ -246,11 +317,11 @@ class Queues():
     #               Read the XML file             #
     # --------------------------------------------#
 
-    def readXmlFile(self, fileXML, configXML, configuration, configProperties):
+    def readXmlFile(self, fileXML, configXML, configProperties):
         print(BACK_GRAY + BLACK + "\nReading XML file :" + DEFAULT + BACK_DEFAULT + " " + fileXML)
         # Regular expression compilation for root or preroot
-        regPreRoot = re.compile(r"^" + re.escape(configuration['pre-root']))
-        regRoot = re.compile(r"^" + re.escape(configuration['root']))
+        regPreRoot = re.compile(r"^" + re.escape(self.configuration['pre-root']))
+        regRoot = re.compile(r"^" + re.escape(self.configuration['root']))
         tree = etree.parse(fileXML)
         # Iterate on the XML file data
         for prop in tree.iter('property'):
@@ -271,18 +342,20 @@ class Queues():
                         # Add the queue with its arborescence and the value
                         # We join the arborescence elements, extract the queue, the property and the value
                         self.addQueueValue('.'.join(elements[4:-2]), str(elements[-2]), str(elements[-1]), prop.find('value').text)
+                        # We add the fact that this is a root arborescence
+                        self.addQueueValue('.'.join(elements[4:-2]), str(elements[-2]), self.configuration['root-name'], 'yes')
                     else:
                         # Add to root the general config
                         self.addQueueValue("", str(elements[-2]), str(elements[-1]), prop.find('value').text)
             elif(regPreRoot.match(prop.find('name').text) is not None):
                 # Find a property without the root, add to the general configuration Queue
                 if(nbElements == 4):
-                    self.addQueueValue("", str(configuration['general']), str(elements[-1]), prop.find('value').text)
+                    self.addQueueValue("", str(self.configuration['general']), str(elements[-1]), prop.find('value').text)
                 # Find a property with a particular structure
                 # ex : yarn.scheduler.capacity.queue-mappings-override.enable : false
                 # make a dict
                 elif(nbElements == 5):
-                    self.addQueueValue("", str(configuration['general']), str(elements[-2]), {str(elements[-1]): prop.find('value').text})
+                    self.addQueueValue("", str(self.configuration['general']), str(elements[-2]), {str(elements[-1]): prop.find('value').text})
                 else:
                     print(BACK_RED + BLACK + "Property not traited :" + DEFAULT + BACK_DEFAULT + " " + prop.find('name').text)
             else:
@@ -319,11 +392,13 @@ def fileReaderJSON(fileName):
     global vg_configuration
     global vg_configProperties
     global vg_xlsConfig
+    global vg_ambariConfig
     with open(fileName) as jsonFile:
         jsonData = json.load(jsonFile)
     vg_configuration = jsonData['configuration']
     vg_configProperties = jsonData['properties-config']
     vg_xlsConfig = jsonData['xls-config']
+    vg_ambariConfig = jsonData['ambari-config']
 
 
 # --------------------------------------------#
@@ -334,15 +409,20 @@ def parseCommandLine():
     global vg_arguments
     parser = argparse.ArgumentParser(
         description='Yarn Queue Manager for setting or reading queues configuration', prog='YarnQueueManager')
-    parser.add_argument('-x', '--xml', type=str, help='XML file name processed')
+    parser.add_argument('-a', '--ambari', action='store_true', default=False, help='send configuration to ambari')
+    parser.add_argument('-c', '--check', action='store_true', default=False, help='check only, nothing is modified')
     parser.add_argument('-e', '--excel', type=str, help='Excel file name for output')
-    parser.add_argument('-d', '--delimiter', type=str, help='file name processed')
     parser.add_argument('-v', '--version', action='store_true', default=False, help='print the version')
     parser.add_argument('-V', '--verbose', action='store_true', default=False, help='verbose mode')
+    parser.add_argument('-x', '--xml', type=str, help='XML file name processed')
 
     vg_arguments = vars(parser.parse_args())
     print(vg_arguments)
     fileReaderJSON('conf/YarnQueueManager.json')
+    # Initiate the object
+    queues = Queues(vg_configuration, vg_configProperties, vg_ambariConfig)
+    # Set the check boolean for knowing if we will change something or not
+    queues.setCheck(vg_arguments['check'])
 
     if vg_arguments['version']:
         programVersion()
@@ -350,23 +430,26 @@ def parseCommandLine():
 
     if vg_arguments['xml'] is None and vg_arguments['excel'] is not None:
         # Read the XLS File and show the queues
-        queues = Queues()
         queues.readXlsFile(vg_arguments['excel'], vg_xlsConfig)
-        queues.showQueue()
+        queues.prettyPrintQueues()
     elif vg_arguments['xml'] is not None and vg_arguments['excel'] is not None:
         # Read the XML file with the actual configuration and generate the XLS file
-        queues = Queues()
-        queues.readXmlFile(vg_arguments['xml'], vg_xlsConfig, vg_configuration, vg_configProperties)
-        queues.showQueue()
-        queues.queuesToXLS(vg_arguments['excel'], vg_xlsConfig, vg_configuration)
+        queues.readXmlFile(vg_arguments['xml'], vg_xlsConfig, vg_configProperties)
+        queues.queuesToXLS(vg_arguments['excel'], vg_xlsConfig)
+        queues.prettyPrintQueues()
     else:
         print("Arguments : \n" + str(vg_arguments))
         exitWithError("invalid arguments : file and delimiter must be defined.")
+
+    if vg_arguments['ambari']:
+        # Option to send to Ambari the configuration
+        queues.putQueuesInAmbari()
 
 
 # --------------------------------------------#
 #                     Main                    #
 # --------------------------------------------#
+
 def main():
     parseCommandLine()
 

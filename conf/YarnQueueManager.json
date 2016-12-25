@@ -4,6 +4,7 @@
     "pre-root": "yarn.scheduler.capacity",
     "root":     "yarn.scheduler.capacity.root",
     "root-name":"root",
+    "arbo-queues-property": "queues",
     "pattern":  "root.env.arbo.queue.property"
   },
   "properties-config": {
@@ -47,10 +48,16 @@
   },
   "ambari-config": {
     "user": "ambari",
-    "url" : "hostname.domain",
-    "port": "8080",
-    "api" : "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
+    "url" : "http://localhost",
+    "port": "80",
+    "api" : {
+      "putQueuesInAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration"
+    },
     "tag" : "tag",
-    "service_config_version_note" : "service_config_version_note"
+    "service_config_version_note" : "service_config_version_note",
+    "headers" :{
+      "Content-Type": "application/json",
+      "X-Requested-By":"ambari"
+    }
   }
 }
