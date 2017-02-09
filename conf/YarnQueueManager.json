@@ -16,17 +16,18 @@
     "capacity" : "int",
     "minimum-user-limit-percent" : "string",
     "maximum-applications" : "string",
-    "maximum-am-resource-percent" : "int",
+    "maximum-am-resource-percent" : "float",
     "maximum-applications" : "string",
     "maximum-capacity" : "int",
-    "minimum-user-limit-percent" : "int",
+    "minimum-user-limit-percent" : "float",
     "node-locality-delay" : "string",
     "queues" : "string",
     "ordering-policy" : "string",
     "queueName" : "string",
     "resource-calculator" : "string",
     "state" : "string",
-    "user-limit-factor" : "int"
+    "user-limit-factor" : "int",
+    "root" : "string"
   },
   "xls-config": {
     "topology":{
@@ -47,16 +48,18 @@
     "row-max" : "85" 
   },
   "ambari-config": {
-    "user": "ambari",
+    "user": "admin",
+    "password": "admin",
     "url" : "http://localhost",
-    "port": "80",
+    "port": "8080",
     "api" : {
-      "putQueuesInAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration"
+      "putQueuesInAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration/saveAndRefresh",
+      "getQueuesFromAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration"
     },
-    "tag" : "tag",
-    "service_config_version_note" : "service_config_version_note",
+    "tag" : "version",
+    "service_config_version_note" : "Updated by YarnQueueManager",
     "headers" :{
-      "Content-Type": "application/json",
+      "Content-Type": "text/plain",
       "X-Requested-By":"ambari"
     }
   }

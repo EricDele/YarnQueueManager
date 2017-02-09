@@ -28,6 +28,7 @@ import pprint
 import argparse
 import xlsxwriter
 import requests
+import time
 from openpyxl import load_workbook
 from lxml import etree
 from collections import defaultdict
@@ -79,7 +80,15 @@ class Queues():
         self.check = True
 
     def addQueueValue(self, arborescence, queueName, propertyName, value):
+        print(propertyName + " : " + str(value))
         try:
+            if(type(value) is not dict):
+                if(self.properties[propertyName] == "int"):
+                    value = int(value)
+                elif(self.properties[propertyName] == "float"):
+                    value = float(value)
+                #elif(self.properties[propertyName] == "string"):
+                 #   value = str(value)
             if(propertyName == self.configuration['arbo-queues-property']):
                 # we have a property for an arborescence with the queues names so
                 # we are on a arborescence head
@@ -142,6 +151,29 @@ class Queues():
         workbook.close()
 
     # --------------------------------------------#
+    #            save config to json file         #
+    #                                             #
+    # --------------------------------------------#
+    def saveQueuesToFile(self, data, file):
+        with open(file, 'w') as outfile:
+            json.dump(data, outfile)
+
+    # --------------------------------------------#
+    #           Get the queue configuration       #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def getQueuesFromAmbari(self, interactif=False):
+        url = self.ambari['url'] + ":" + self.ambari['port'] + self.ambari['api']['getQueuesFromAmbari']
+        data = defaultdict(dict)
+        r = requests.get(url, auth=(self.ambari['user'], self.ambari['password']))
+        data = r.json()
+        if(interactif):
+            print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+            print(json.dumps(data, indent=2))
+        return data
+
+    # --------------------------------------------#
     #        Inject the queue configuration       #
     #               in ambari rest api            #
     # --------------------------------------------#
@@ -150,6 +182,8 @@ class Queues():
         url = self.ambari['url'] + ":" + self.ambari['port'] + self.ambari['api']['putQueuesInAmbari']
         headers = defaultdict(dict)
         properties = defaultdict(dict)
+        # Get actual configuration for increase the version
+        actual_config = self.getQueuesFromAmbari()
         # Iterate the Queues object by queueName to create the properties
         for queueName in sorted(self.queues.keys()):
             if(self.configuration['root-name'] in self.queues[queueName].keys() and 'arborescence-head' not in self.queues[queueName].keys()):
@@ -164,20 +198,21 @@ class Queues():
                             properties['.'.join([self.configuration['root'], self.queues[queueName]['queue-name'], propertyName])] = self.queues[queueName][propertyName]
         desired_config = []
         desired_config.append(defaultdict(dict))
+        desired_config[0]['service_config_version_note'] = self.ambari['service_config_version_note']
+        desired_config[0]['tag'] = self.ambari['tag'] + str(int(time.time())) #"TOPOLOGY_RESOLVED" 
         desired_config[0]['type'] = "capacity-scheduler"
-        desired_config[0]['tag'] = "VARIABLE_POUR_YARN_SCHEDULER_TAG"
-        desired_config[0]['service_config_version_note'] = "VARIABLE_POUR_YARN_SCHEDULER_VERSION_NOTE"
+        desired_config[0]['version'] = actual_config['items'][0]['version'] + 1
         desired_config[0]['properties'] = properties
         clusters = defaultdict(dict)
-        clusters['desired_config'] = desired_config
+        clusters['desired_configs'] = desired_config
         data = defaultdict(dict)
         data['Clusters'] = clusters
+        print(json.dumps(data, indent=2))
         for key in self.ambari['headers']:
             headers[key] = self.ambari['headers'][key]
-        r = requests.put(url, headers=headers, data=data)
+        r = requests.put(url, headers=headers, data=data, auth=(self.ambari['user'], self.ambari['password']))
+        print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
         print(r.text)
-        pp = pprint.PrettyPrinter(indent=2, width=120, depth=5)
-        pp.pprint(json.dumps(data))
 
     # --------------------------------------------#
     #             Set the check boolean           #
@@ -412,6 +447,8 @@ def parseCommandLine():
     parser.add_argument('-a', '--ambari', action='store_true', default=False, help='send configuration to ambari')
     parser.add_argument('-c', '--check', action='store_true', default=False, help='check only, nothing is modified')
     parser.add_argument('-e', '--excel', type=str, help='Excel file name for output')
+    parser.add_argument('-l', '--list', action='store_true', default=False, help='get configuration from ambari')
+    parser.add_argument('-s', '--save', type=str, help='save to file')
     parser.add_argument('-v', '--version', action='store_true', default=False, help='print the version')
     parser.add_argument('-V', '--verbose', action='store_true', default=False, help='verbose mode')
     parser.add_argument('-x', '--xml', type=str, help='XML file name processed')
@@ -437,6 +474,11 @@ def parseCommandLine():
         queues.readXmlFile(vg_arguments['xml'], vg_xlsConfig, vg_configProperties)
         queues.queuesToXLS(vg_arguments['excel'], vg_xlsConfig)
         queues.prettyPrintQueues()
+    elif vg_arguments['list'] is not None:
+        # Read the XML file with the actual configuration and generate the XLS file
+        actual_config = queues.getQueuesFromAmbari(True)
+        if(vg_arguments['save'] is not None):
+            queues.saveQueuesToFile(actual_config, vg_arguments['save'])
     else:
         print("Arguments : \n" + str(vg_arguments))
         exitWithError("invalid arguments : file and delimiter must be defined.")
