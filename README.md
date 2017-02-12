@@ -97,3 +97,6 @@ curl -u admin:admin -H "Content-Type: text/plain" -H "X-Requested-By:ambari" -X 
 }'
 
 
+Author
+------
+Eric Deleforterie

@@ -1,67 +1,111 @@
 {
-  "configuration" : {
-    "general" : "general",
+  "configuration": {
+    "general": "general",
     "pre-root": "yarn.scheduler.capacity",
-    "root":     "yarn.scheduler.capacity.root",
-    "root-name":"root",
+    "root": "yarn.scheduler.capacity.root",
+    "root-name": "root",
     "arbo-queues-property": "queues",
-    "pattern":  "root.env.arbo.queue.property"
+    "pattern": "root.env.arbo.queue.property"
   },
   "properties-config": {
-    "accessible-node-labels" : "string",
-    "acl_administer_jobs" : "string",
-    "acl_administer_queue" : "string",
-    "acl_submit_applications" : "string",
-    "arbo" : "string",
-    "capacity" : "int",
-    "minimum-user-limit-percent" : "string",
-    "maximum-applications" : "string",
-    "maximum-am-resource-percent" : "float",
-    "maximum-applications" : "string",
-    "maximum-capacity" : "int",
-    "minimum-user-limit-percent" : "float",
-    "node-locality-delay" : "string",
-    "queues" : "string",
-    "ordering-policy" : "string",
-    "queueName" : "string",
-    "resource-calculator" : "string",
-    "state" : "string",
-    "user-limit-factor" : "int",
-    "root" : "string"
+    "accessible-node-labels": "string",
+    "acl_administer_jobs": "string",
+    "acl_administer_queue": "string",
+    "acl_submit_applications": "string",
+    "arbo": "string",
+    "capacity": "int",
+    "minimum-user-limit-percent": "float",
+    "maximum-applications": "string",
+    "maximum-am-resource-percent": "float",
+    "maximum-capacity": "int",
+    "node-locality-delay": "string",
+    "queues": "string",
+    "ordering-policy": "string",
+    "queueName": "string",
+    "resource-calculator": "string",
+    "state": "string",
+    "user-limit-factor": "int",
+    "root": "string"
   },
   "xls-config": {
-    "topology":{
-        "C":{"property" : "arbo",               "columnTitle" : "Arbo",                  "default" : ""},
-        "D":{"property" : "queueName",          "columnTitle" : "Queues",                "default" : ""},
-        "E":{"property" : "capacity",           "columnTitle" : "Configured capacity %", "default" : "1"},
-        "F":{"property" : "maximum-capacity",   "columnTitle" : "Maximum capacity %",    "default" : "1"},
-        "I":{"property" : "user-limit-factor",  "columnTitle" : "user-limit-factor",     "default" : ""},
-        "J":{"property" : "acl_administer_jobs","columnTitle" : "Ranger User",           "default" : ""},
-        "L":{"property" : "ordering-policy",    "columnTitle" : "Ordering Policy",       "default" : "fifo"},
-        "M":{"property" : "state",              "columnTitle" : "State",                 "default" : "RUNNING"}
+    "topology": {
+      "C": {
+        "property": "arbo",
+        "columnTitle": "Arbo",
+        "default": ""
       },
-    "sheet-name" : "Queues Elastic Fix",
-    "row-titles" : "4",
-    "queues-name-column" : "4",
-    "cellule-origine" : {"row": "11", "col": "3"},
-    "nb-groupes-arbo" : "1",
-    "row-max" : "85" 
+      "D": {
+        "property": "queueName",
+        "columnTitle": "Queues",
+        "default": ""
+      },
+      "E": {
+        "property": "capacity",
+        "columnTitle": "Configured capacity %",
+        "default": "1"
+      },
+      "F": {
+        "property": "maximum-capacity",
+        "columnTitle": "Maximum capacity %",
+        "default": "1"
+      },
+      "I": {
+        "property": "user-limit-factor",
+        "columnTitle": "user-limit-factor",
+        "default": ""
+      },
+      "J": {
+        "property": "acl_administer_jobs",
+        "columnTitle": "Ranger User",
+        "default": ""
+      },
+      "L": {
+        "property": "ordering-policy",
+        "columnTitle": "Ordering Policy",
+        "default": "fifo"
+      },
+      "M": {
+        "property": "state",
+        "columnTitle": "State",
+        "default": "RUNNING"
+      }
+    },
+    "sheet-name": "Queues Elastic Fix",
+    "row-titles": "4",
+    "queues-name-column": "4",
+    "cellule-origine": {
+      "row": "11",
+      "col": "3"
+    },
+    "nb-groupes-arbo": "1",
+    "row-max": "85"
   },
   "ambari-config": {
     "user": "admin",
     "password": "admin",
-    "url" : "http://localhost",
+    "url": "http://localhost",
     "port": "8080",
-    "api" : {
+    "api": {
       "putQueuesInAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
       "getQueuesFromAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
       "saveAndRefresh": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration/saveAndRefresh"
     },
-    "tag" : "version",
-    "service_config_version_note" : "Updated by YarnQueueManager",
-    "headers" :{
+    "tag": "version",
+    "service_config_version_note": "Updated by YarnQueueManager",
+    "headers": {
       "Content-Type": "text/plain",
-      "X-Requested-By":"ambari"
+      "X-Requested-By": "ambari"
+    },
+    "default": {
+      "yarn.scheduler.capacity.resource-calculator": "org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator",
+      "yarn.scheduler.capacity.default.minimum-user-limit-percent": 100,
+      "yarn.scheduler.capacity.maximum-am-resource-percent": 0.5,
+      "yarn.scheduler.capacity.maximum-applications": 10000,
+      "yarn.scheduler.capacity.node-locality-delay": 40,
+      "yarn.scheduler.capacity.root.accessible-node-labels": "*",
+      "yarn.scheduler.capacity.root.acl_administer_queue": "yarn",
+      "yarn.scheduler.capacity.root.capacity": 100,
+      "yarn.scheduler.capacity.root.maximum-applications": 10000
     }
   }
 }

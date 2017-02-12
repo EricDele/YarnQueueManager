@@ -81,33 +81,70 @@ class Queues():
         # Boolean to know if we could change something or just dry run
         self.dryRun = True
 
+    # --------------------------------------------#
+    #   Add a property with its value to a queue  #
+    #                                             #
+    # --------------------------------------------#
+
     def addQueueValue(self, arborescence, queueName, propertyName, value):
-        #print(propertyName + " : " + str(value))
+        # print(propertyName + " : " + str(value))
         try:
             if(type(value) is not dict and propertyName in self.properties):
                 if(self.properties[propertyName] == "int"):
                     value = int(value)
                 elif(self.properties[propertyName] == "float"):
                     value = float(value)
-                #elif(self.properties[propertyName] == "string"):
-                #   value = str(value)
             if(propertyName == self.configuration['arbo-queues-property']):
                 # we have a property for an arborescence with the queues names so
                 # we are on a arborescence head
                 self.queues[queueName]['arborescence'] = queueName
                 self.queues[queueName]['arborescence-head'] = 'yes'
+                # Set the queues tree leaf lists from when from XML
+                self.queues[queueName][propertyName] = value
             if(arborescence != ""):
                 # we have a property for a queue within arborescence
                 self.queues['.'.join((arborescence, queueName))][propertyName] = value
                 self.queues['.'.join((arborescence, queueName))]['queue-name'] = queueName
                 self.queues['.'.join((arborescence, queueName))]['arborescence'] = arborescence
             else:
-                # we have a prperty for a queue that is not in an arborescence
+                # we have a property for a queue that is not in an arborescence
                 self.queues[queueName][propertyName] = value
                 self.queues[queueName]['queue-name'] = queueName
                 self.queues[queueName]['arborescence'] = ''
         except Exception as e:
             raise e
+
+    # --------------------------------------------#
+    #      Manage the tree leaf of the Queues     #
+    #                                             #
+    # --------------------------------------------#
+
+    def manageQueuesTreeLeafs(self):
+        for queueName in sorted(self.queues.keys()):
+            # Test if we have a multi leaf arborescence
+            if queueName.find('.') != -1:
+                # Have an arborescence with leaf, split all the leafs in a list
+                elements = queueName.split('.')
+                nbElements = len(elements)
+                # Iterate from the end of the list to obtain the tree leaf
+                # WordA.WordB.WordC.WordD : WordE
+                # WordA.WordB.WordC : WordD
+                # WordA.WordB : WordC
+                # WordA : WordB
+                for indice in range(nbElements - 1, 0, -1):
+                    actualArborescence = '.'.join(elements[0:indice])
+                    if 'queues' in self.queues[actualArborescence]:
+                        self.queues[actualArborescence]['queues'] = ','.join((self.queues[actualArborescence]['queues'], str(elements[indice])))
+                    else:
+                        self.queues[actualArborescence]['queues'] = str(elements[indice])
+            else:
+                # We don't put the root queue in the tree
+                if queueName != self.configuration['root-name']:
+                    # We are just under root
+                    if 'queues' in self.queues[self.configuration['root-name']] and queueName not in self.queues[self.configuration['root-name']]['queues']:
+                        self.queues[self.configuration['root-name']]['queues'] = ','.join((self.queues[self.configuration['root-name']]['queues'], queueName))
+                    else:
+                        self.queues[self.configuration['root-name']]['queues'] = queueName
 
     # --------------------------------------------#
     #       Create the XLS file from the Queues   #
@@ -195,30 +232,25 @@ class Queues():
         properties = defaultdict(dict)
         # Get actual configuration for increase the version
         self.getQueuesFromAmbari()
+        # Add the default configuration like root config, could be overwrited by config from the files
+        for key in self.ambariConfiguration['default'].keys():
+            properties[key] = self.ambariConfiguration['default'][key]
         # Iterate the Queues object by queueName to create the properties
         for queueName in sorted(self.queues.keys()):
-            if(self.configuration['root-name'] in self.queues[queueName].keys() and 'arborescence-head' not in self.queues[queueName].keys()):
+            # if(self.configuration['root-name'] in self.queues[queueName].keys()): # and 'arborescence-head' not in self.queues[queueName].keys()):
                 # We have a queue that is in the root
-                # Iterat the properties for this queue
+                # Iterate the properties for this queue
                 for propertyName in sorted(self.queues[queueName].keys()):
                     # set the property if this is a property accepted in the configuration and not the root:yes property
-                    if(propertyName in self.properties.keys() and propertyName != self.configuration['root-name']):
-                        if(self.queues[queueName]['arborescence'] != ""):
+                    if(propertyName in self.properties.keys() and propertyName != self.configuration['root-name'] and propertyName != 'arborescence-head'):
+                        # Test if we are on the root queue
+                        if queueName == self.configuration['root-name']:
+                            properties['.'.join([self.configuration['root'], propertyName])] = self.queues[queueName][propertyName]
+                        # Test if arborescence is not empty
+                        elif(self.queues[queueName]['arborescence'] != ""):
                             properties['.'.join([self.configuration['root'], self.queues[queueName]['arborescence'], self.queues[queueName]['queue-name'], propertyName])] = self.queues[queueName][propertyName]
                         else:
                             properties['.'.join([self.configuration['root'], self.queues[queueName]['queue-name'], propertyName])] = self.queues[queueName][propertyName]
-        properties["yarn.scheduler.capacity.resource-calculator"] = "org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator"
-        properties["yarn.scheduler.capacity.default.minimum-user-limit-percent"] = 100
-        properties["yarn.scheduler.capacity.maximum-am-resource-percent"] = 0.5
-        properties["yarn.scheduler.capacity.maximum-applications"] = 10000
-        properties["yarn.scheduler.capacity.node-locality-delay"] = 40
-        properties["yarn.scheduler.capacity.root.queues"] = ','.join(sorted(self.queues.keys()))
-        # le queue.queues doit être renseigné pour chaque queue avec son arborescence decendante sur un seul niveau
-        # "yarn.scheduler.capacity.root.queues": "Chats,Eric,Sylvie,default",
-        # "yarn.scheduler.capacity.root.Eric.queues": "SurfBoards",
-        # "yarn.scheduler.capacity.root.Eric.SurfBoards.queues": "Longboard,Shortboard",
-        # "yarn.scheduler.capacity.root.Chats.queues": "Fidji,Sammy"
-
         desired_config = []
         desired_config.append(defaultdict(dict))
         desired_config[0]['service_config_version_note'] = self.ambariConfiguration['service_config_version_note']
@@ -338,45 +370,76 @@ class Queues():
         actualArborescence = ""
         while row != rowMax:
             if(ws.cell(row=row, column=col).value is None and ws.cell(row=row, column=col + 1).value is None):
-                # Epty line, arborescence is reinitialized
+                # Empty line, arborescence is reinitialized
                 actualArborescence = ""
-            elif(ws.cell(row=row, column=col).value is not None and ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is None):
-                # New arborescence
-                actualArborescence = ws.cell(row=row, column=col).value
-                # We add the arborescence-head key in the queue
-                self.addQueueValue(actualArborescence, actualArborescence, self.configuration['arbo-queues-property'], '')
-                self.addQueueValue(actualArborescence, actualArborescence, 'arborescence-head', 'yes')
-                print(BACK_BLUE + CYAN + "New ARBORESCENCE : " + actualArborescence + DEFAULT + BACK_DEFAULT)
-            elif(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
-                # Find a Queue
-                queueName = str(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value)
-                # Add the root key for this queue
-                self.addQueueValue(actualArborescence, queueName, self.configuration['root-name'], 'yes')
-                # Iterate on the line with the confiured columns
-                for column in sorted(configXLS['topology']):
-                    # Store the cell value
-                    cellValue = str(ws.cell(row=row, column=self.lettreVersCol(column)).value)
-                    # Check that we are not in the Queue column and on the right of the Queue column
-                    if(column.upper() != self.colVersLettre(int(configXLS['queues-name-column'])) and column.upper() > self.colVersLettre(int(configXLS['queues-name-column']))):
-                        # Add the value if present, in other case, the default value if in configuration file
-                        if(cellValue != 'None'):
-                            self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], cellValue)
-                            sys.stdout.write(GREEN + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
-                        # default value
-                        elif(configXLS['topology'][column]['default'] != ""):
-                            self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], configXLS['topology'][column]['default'])
-                            sys.stdout.write(YELLOW + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
-                        # no default value and cell empty, do nothing
-                        else:
-                            sys.stdout.write(RED + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
-                    # Queue column
-                    elif(column.upper() == self.colVersLettre(int(configXLS['queues-name-column']))):
-                        if(actualArborescence != ""):
-                            sys.stdout.write("Arborescence : " + CYAN + actualArborescence + "." + queueName + DEFAULT + ", ")
-                        else:
-                            sys.stdout.write("Arborescence : " + CYAN + queueName + DEFAULT + ", ")
-                print("")
+            else:
+                if(ws.cell(row=row, column=col).value is not None and ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is None):
+                    # New arborescence
+                    # actualArborescence = ws.cell(row=row, column=col).value
+                    # We add the arborescence-head key in the queue
+                    # self.addQueueValue(actualArborescence, actualArborescence, self.configuration['arbo-queues-property'], '')
+                    # self.addQueueValue(actualArborescence, actualArborescence, 'arborescence-head', 'yes')
+                    queueName = ws.cell(row=row, column=col).value
+                    # self.addQueueValue(actualArborescence, queueName, self.configuration['arbo-queues-property'], '')
+                    self.addQueueValue(actualArborescence, queueName, 'arborescence-head', 'yes')                    
+                    print(BACK_BLUE + CYAN + "New ARBORESCENCE : " + actualArborescence + DEFAULT + BACK_DEFAULT)
+                    for column in sorted(configXLS['topology']):
+                        # Store the cell value
+                        cellValue = str(ws.cell(row=row, column=self.lettreVersCol(column)).value)
+                        # Check that we are not in the Queue column and on the right of the Queue column
+                        if(column.upper() != self.colVersLettre(int(configXLS['queues-name-column'])) and column.upper() > self.colVersLettre(int(configXLS['queues-name-column']))):
+                            # Add the value if present, in other case, the default value if in configuration file
+                            if(cellValue != 'None'):
+                                self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], cellValue)
+                                sys.stdout.write(GREEN + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                            # default value
+                            elif(configXLS['topology'][column]['default'] != ""):
+                                self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], configXLS['topology'][column]['default'])
+                                sys.stdout.write(YELLOW + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                            # no default value and cell empty, do nothing
+                            else:
+                                sys.stdout.write(RED + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                        # Queue column
+                        elif(column.upper() == self.colVersLettre(int(configXLS['queues-name-column']))):
+                            if(actualArborescence != ""):
+                                sys.stdout.write("Arborescence : " + CYAN + actualArborescence + "." + queueName + DEFAULT + ", ")
+                            else:
+                                sys.stdout.write("Arborescence : " + CYAN + queueName + DEFAULT + ", ")
+                        print("")
+                    actualArborescence = queueName
+                # if(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
+                elif(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
+                    # Find a Queue
+                    queueName = str(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value)
+                    # Add the root key for this queue
+                    self.addQueueValue(actualArborescence, queueName, self.configuration['root-name'], 'yes')
+                    # Iterate on the line with the confiured columns
+                    for column in sorted(configXLS['topology']):
+                        # Store the cell value
+                        cellValue = str(ws.cell(row=row, column=self.lettreVersCol(column)).value)
+                        # Check that we are not in the Queue column and on the right of the Queue column
+                        if(column.upper() != self.colVersLettre(int(configXLS['queues-name-column'])) and column.upper() > self.colVersLettre(int(configXLS['queues-name-column']))):
+                            # Add the value if present, in other case, the default value if in configuration file
+                            if(cellValue != 'None'):
+                                self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], cellValue)
+                                sys.stdout.write(GREEN + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                            # default value
+                            elif(configXLS['topology'][column]['default'] != ""):
+                                self.addQueueValue(actualArborescence, queueName, configXLS['topology'][column]['property'], configXLS['topology'][column]['default'])
+                                sys.stdout.write(YELLOW + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                            # no default value and cell empty, do nothing
+                            else:
+                                sys.stdout.write(RED + configXLS['topology'][column]['property'] + ": " + cellValue + ", " + DEFAULT)
+                        # Queue column
+                        elif(column.upper() == self.colVersLettre(int(configXLS['queues-name-column']))):
+                            if(actualArborescence != ""):
+                                sys.stdout.write("Arborescence : " + CYAN + actualArborescence + "." + queueName + DEFAULT + ", ")
+                            else:
+                                sys.stdout.write("Arborescence : " + CYAN + queueName + DEFAULT + ", ")
+                        print("")
             row += 1
+        # We construct the tree of leafs
+        self.manageQueuesTreeLeafs()
 
     # --------------------------------------------#
     #               Read the XML file             #
@@ -542,6 +605,7 @@ def parseCommandLine():
     # Want to print the loaded configuration
     if vg_arguments['print'] is not None:
         queues.prettyPrintQueues()
+
 
     # Put the configuration to...
     if vg_arguments['to'] is not None and validFromArgument and queues.getDryRun() is False:
