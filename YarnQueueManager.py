@@ -147,6 +147,31 @@ class Queues():
                         self.queues[self.configuration['root-name']]['queues'] = queueName
 
     # --------------------------------------------#
+    #   Some checks after reading the Excel file  #
+    #                                             #
+    # --------------------------------------------#
+
+    def checkQueuesCoherence(self):
+        totalCapacity = 0
+        checkSuccessfull = True
+        for queueName in sorted(self.queues.keys()):
+            # Test if we are on a branch with leafs
+            if 'capacity' in self.queues[queueName] and 'maximum-capacity' in self.queues[queueName]:
+                if self.queues[queueName]['capacity'] > self.queues[queueName]['maximum-capacity']:
+                    print(BACK_GRAY + RED + "Queue : " + queueName + ", capacity is > maximum-capacity ( " + str(self.queues[queueName]['capacity']) + " > " +
+                          str(self.queues[queueName]['maximum-capacity']) + " )" + DEFAULT + BACK_DEFAULT)
+                    checkSuccessfull = False
+            if 'capacity' in self.queues[queueName]:
+                if 'arborescence' in self.queues[queueName] and self.queues[queueName]['arborescence'] == "":
+                    totalCapacity = totalCapacity + self.queues[queueName]['capacity']
+                elif 'arborescence-head' in self.queues[queueName]:
+                    # TODO : Compute for each branch the totalLeafsCapacity
+                    totalLeafsCapacity = 0
+        if totalCapacity > 100:
+            checkSuccessfull = False
+            print(BACK_GRAY + RED + "Total Capacity is over 100% : " + str(totalCapacity) + DEFAULT + BACK_DEFAULT)
+        return checkSuccessfull
+    # --------------------------------------------#
     #       Create the XLS file from the Queues   #
     #                   object                    #
     # --------------------------------------------#
@@ -232,6 +257,13 @@ class Queues():
         properties = defaultdict(dict)
         # Get actual configuration for increase the version
         self.getQueuesFromAmbari()
+
+        # Test if those parameters are mandatory or not
+        # "yarn.scheduler.capacity.root.Chats.acl_submit_applications": "*",
+        # "yarn.scheduler.capacity.root.Chats.user-limit-factor": "1",
+        # "yarn.scheduler.capacity.root.Chats.acl_administer_queue": "*",
+        # "yarn.scheduler.capacity.root.Chats.minimum-user-limit-percent": "100",
+
         # Add the default configuration like root config, could be overwrited by config from the files
         for key in self.ambariConfiguration['default'].keys():
             properties[key] = self.ambariConfiguration['default'][key]
@@ -265,9 +297,9 @@ class Queues():
         print(json.dumps(data, indent=2))
         for key in self.ambariConfiguration['headers']:
             headers[key] = self.ambariConfiguration['headers'][key]
-        r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
-        print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
-        print(r.text)
+        # r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        # print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
+        # print(r.text)
 
     # --------------------------------------------#
     #             Set the dryRun boolean           #
@@ -381,7 +413,7 @@ class Queues():
                     # self.addQueueValue(actualArborescence, actualArborescence, 'arborescence-head', 'yes')
                     queueName = ws.cell(row=row, column=col).value
                     # self.addQueueValue(actualArborescence, queueName, self.configuration['arbo-queues-property'], '')
-                    self.addQueueValue(actualArborescence, queueName, 'arborescence-head', 'yes')                    
+                    self.addQueueValue(actualArborescence, queueName, 'arborescence-head', 'yes')
                     print(BACK_BLUE + CYAN + "New ARBORESCENCE : " + actualArborescence + DEFAULT + BACK_DEFAULT)
                     for column in sorted(configXLS['topology']):
                         # Store the cell value
@@ -440,6 +472,8 @@ class Queues():
             row += 1
         # We construct the tree of leafs
         self.manageQueuesTreeLeafs()
+        # Do some checks on the queues
+        self.checkQueuesCoherence()
 
     # --------------------------------------------#
     #               Read the XML file             #
