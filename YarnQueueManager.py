@@ -78,6 +78,8 @@ class Queues():
         self.properties = properties
         # Ambari configuration from config file
         self.ambariConfiguration = ambariConfiguration
+        # ADMIN_VIEW version for managing the put mediaType
+        self.adminViewVersion = "default"
         # Boolean to know if we could change something or just dry run
         self.dryRun = True
 
@@ -234,6 +236,20 @@ class Queues():
             json.dump(data, outfile)
 
     # --------------------------------------------#
+    #           Get the ADMIN_VIEW version        #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def getAdminViewVersionFromAmbari(self):
+        url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['getAdminViewVersion']
+        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        data = r.json()
+        if data['versions'][0]['ViewVersionInfo']['view_name'] == 'ADMIN_VIEW':
+            longVersion = data['versions'][0]['ViewVersionInfo']['version']
+            versionDigits = longVersion.split('.')
+            self.adminViewVersion = '.'.join([versionDigits[0], versionDigits[1]])
+
+    # --------------------------------------------#
     #           Get the queue configuration       #
     #             from ambari rest api            #
     # --------------------------------------------#
@@ -252,6 +268,7 @@ class Queues():
     # --------------------------------------------#
 
     def putQueuesInAmbari(self):
+        self.getAdminViewVersionFromAmbari()
         url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
         headers = defaultdict(dict)
         properties = defaultdict(dict)
@@ -295,11 +312,11 @@ class Queues():
         data = defaultdict(dict)
         data['Clusters'] = clusters
         print(json.dumps(data, indent=2))
-        for key in self.ambariConfiguration['headers']:
-            headers[key] = self.ambariConfiguration['headers'][key]
-        # r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
-        # print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
-        # print(r.text)
+        for key in self.ambariConfiguration['headers-by-version'][self.adminViewVersion]:
+            headers[key] = self.ambariConfiguration['headers-by-version'][self.adminViewVersion][key]
+        r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
+        print(r.text)
 
     # --------------------------------------------#
     #             Set the dryRun boolean           #
