@@ -242,7 +242,7 @@ class Queues():
 
     def getAdminViewVersionFromAmbari(self):
         url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['getAdminViewVersion']
-        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
         data = r.json()
         if data['versions'][0]['ViewVersionInfo']['view_name'] == 'ADMIN_VIEW':
             longVersion = data['versions'][0]['ViewVersionInfo']['version']
@@ -256,7 +256,7 @@ class Queues():
 
     def getQueuesFromAmbari(self, interactif=False):
         url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['getQueuesFromAmbari']
-        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
         self.ambari = r.json()
         if(interactif):
             print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
@@ -314,7 +314,7 @@ class Queues():
         print(json.dumps(data, indent=2))
         for key in self.ambariConfiguration['headers-by-version'][self.adminViewVersion]:
             headers[key] = self.ambariConfiguration['headers-by-version'][self.adminViewVersion][key]
-        r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']))
+        r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
         print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
         print(r.text)
 
@@ -490,7 +490,7 @@ class Queues():
         # We construct the tree of leafs
         self.manageQueuesTreeLeafs()
         # Do some checks on the queues
-        self.checkQueuesCoherence()
+        return self.checkQueuesCoherence()
 
     # --------------------------------------------#
     #               Read the XML file             #
@@ -625,7 +625,8 @@ def parseCommandLine():
         # Get EXCEL FILE configuration
         elif vg_arguments['from'] == 'xlsFile':
             if vg_arguments['xlsFile'] is not None:
-                queues.readXlsFile(vg_arguments['xlsFile'], vg_xlsConfig)
+                if not queues.readXlsFile(vg_arguments['xlsFile'], vg_xlsConfig):
+                    exitWithError("Error detected when reading excel file.")
             else:
                 print("Arguments : \n" + str(vg_arguments))
                 exitWithError("Invalid arguments : when using <from xlsFile> you have to set <xlsFile> parameter.")
