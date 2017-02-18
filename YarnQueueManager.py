@@ -149,6 +149,18 @@ class Queues():
                         self.queues[self.configuration['root-name']]['queues'] = queueName
 
     # --------------------------------------------#
+    #   Compute the capacity for the leafs        #
+    #                of a branch                  #
+    # --------------------------------------------#
+
+    def computeArborescenceCapacity(self, arborescence):
+        arborescenceCapacity = 0
+        for queueName in sorted(self.queues.keys()):
+            if 'arborescence' in self.queues[queueName] and self.queues[queueName]['arborescence'] == arborescence and 'arborescence-head' not in self.queues[queueName]:
+                arborescenceCapacity = arborescenceCapacity + self.queues[queueName]['capacity']
+        return arborescenceCapacity
+
+    # --------------------------------------------#
     #   Some checks after reading the Excel file  #
     #                                             #
     # --------------------------------------------#
@@ -157,21 +169,27 @@ class Queues():
         totalCapacity = 0
         checkSuccessfull = True
         for queueName in sorted(self.queues.keys()):
-            # Test if we are on a branch with leafs
+            # Test if maximum-capacity is under capacity
             if 'capacity' in self.queues[queueName] and 'maximum-capacity' in self.queues[queueName]:
                 if self.queues[queueName]['capacity'] > self.queues[queueName]['maximum-capacity']:
                     print(BACK_GRAY + RED + "Queue : " + queueName + ", capacity is > maximum-capacity ( " + str(self.queues[queueName]['capacity']) + " > " +
                           str(self.queues[queueName]['maximum-capacity']) + " )" + DEFAULT + BACK_DEFAULT)
                     checkSuccessfull = False
+            # Test if we are on a branch with leafs
             if 'capacity' in self.queues[queueName]:
+                # A Leaf
                 if 'arborescence' in self.queues[queueName] and self.queues[queueName]['arborescence'] == "":
                     totalCapacity = totalCapacity + self.queues[queueName]['capacity']
-                elif 'arborescence-head' in self.queues[queueName]:
-                    # TODO : Compute for each branch the totalLeafsCapacity
-                    totalLeafsCapacity = 0
-        if totalCapacity > 100:
+                # A branch head
+                if 'arborescence-head' in self.queues[queueName] and self.queues[queueName]['arborescence-head'] == "yes":
+                    # Compute for this branch the totalLeafsCapacity
+                    totalLeafsCapacity = self.computeArborescenceCapacity(queueName)
+                    if totalLeafsCapacity != 100:
+                        checkSuccessfull = False
+                        print(BACK_GRAY + RED + "Arborescence Capacity is not 100% for leafs of " + queueName + " : " + str(totalLeafsCapacity) + DEFAULT + BACK_DEFAULT)
+        if totalCapacity != 100:
             checkSuccessfull = False
-            print(BACK_GRAY + RED + "Total Capacity is over 100% : " + str(totalCapacity) + DEFAULT + BACK_DEFAULT)
+            print(BACK_GRAY + RED + "Total Capacity is not 100% : " + str(totalCapacity) + DEFAULT + BACK_DEFAULT)
         return checkSuccessfull
     # --------------------------------------------#
     #       Create the XLS file from the Queues   #
@@ -590,10 +608,6 @@ def parseCommandLine():
     global vg_arguments
     parser = argparse.ArgumentParser(
         description='Yarn Queue Manager for setting or reading queues configuration', prog='YarnQueueManager')
-    # parser.add_argument('-a', '--ambari', action='store_true', default=False, help='send configuration to ambari')
-    # parser.add_argument('-s', '--save', type=str, help='save to file')
-    # parser.add_argument('-x', '--xml', type=str, help='XML file name processed')
-
     parser.add_argument('-v', '--version', action='store_true', default=False, help='print the version')
     parser.add_argument('-V', '--verbose', action='store_true', default=False, help='verbose mode')
     parser.add_argument('-p', '--print', action='store_true', default=False, help='print configuration')
