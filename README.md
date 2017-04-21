@@ -12,7 +12,7 @@ Possibilities :
 
 ### Usage
 
-./YarnQueueManager.py --help
+'''./YarnQueueManager.py --help
 usage: YarnQueueManager [-h] [--version] [--verbose] [--print] [--dryRun]
                         [--from {ambari,xlsFile,xmlFile,jsonFile}]
                         [--to {ambari,xlsFile,jsonFile}]
@@ -44,7 +44,7 @@ optional arguments:
   --xlsFile XLSFILE     Excel file name for get or put
   --jsonFile JSONFILE   Json file name for get or put
   --xmlFile XMLFILE     Xml file name for get ex : capacity-scheduler.xml
-
+'''
 
 ### Examples 
 
