@@ -74,8 +74,10 @@ optional arguments:
 
 You could use this command to test the Ambari API of the Hortonworks sandbox
 Don't forget to update the tag and the version number
-```json
+```
 curl -u admin:admin -H "Content-Type: text/plain" -H "X-Requested-By:ambari" -X PUT http://localhost:8080/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration --data '
+```
+```json
 {               
   "Clusters": {
     "desired_config": [
