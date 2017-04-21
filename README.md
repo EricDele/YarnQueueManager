@@ -13,33 +13,43 @@ Possibilities :
 ### Usage
 
 ./YarnQueueManager.py --help
-usage: YarnQueueManager [-h] [-v] [-V] [-p] [-d] [-f FROM] [-t TO]
-                        [-e XLSFILE] [-j JSONFILE] [-x XMLFILE]
+usage: YarnQueueManager [-h] [--version] [--verbose] [--print] [--dryRun]
+                        [--from {ambari,xlsFile,xmlFile,jsonFile}]
+                        [--to {ambari,xlsFile,jsonFile}]
+                        [--envUrl {int-appli,int-tech,prod}]
+                        [--ambariUser AMBARIUSER] [--xlsFile XLSFILE]
+                        [--jsonFile JSONFILE] [--xmlFile XMLFILE]
 
 Yarn Queue Manager for setting or reading queues configuration
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --version         print the version
-  -V, --verbose         verbose mode
-  -p, --print           print configuration
-  -d, --dryRun          Dry run only, nothing is modified
-  -f FROM, --from FROM  Get capacity-scheduler configuration from
+  --version             print the version
+  --verbose             verbose mode
+  --print               print configuration
+  --dryRun              Dry run only, nothing is modified
+  --from {ambari,xlsFile,xmlFile,jsonFile}
+                        Get capacity-scheduler configuration from
                         [ambari|xlsFile|xmlFile|jsonFile]
-  -t TO, --to TO        Put capacity-scheduler configuration to
+  --to {ambari,xlsFile,jsonFile}
+                        Put capacity-scheduler configuration to
                         [ambari|xlsFile|jsonFile]
-  -e XLSFILE, --xlsFile XLSFILE
-                        Excel file name for get or put
-  -j JSONFILE, --jsonFile JSONFILE
-                        Json file name for get or put
-  -x XMLFILE, --xmlFile XMLFILE
-                        Xml file name for get ex : capacity-scheduler.xml
+  --envUrl {int-appli,int-tech,prod}
+                        Environment target for the Ambari URL [int-appli|int-
+                        tech|prod] as configured in the json configuration
+                        file
+  --ambariUser AMBARIUSER
+                        Specify an other user to use for Ambari credentials
+                        than the actual connected user
+  --xlsFile XLSFILE     Excel file name for get or put
+  --jsonFile JSONFILE   Json file name for get or put
+  --xmlFile XMLFILE     Xml file name for get ex : capacity-scheduler.xml
 
 
 ### Examples 
 
 * Get the actual configuration from Ambari API and print the result
-    ./YarnQueueManager.py --from ambari -d -p
+    ./YarnQueueManager.py --from ambari -d -p --envUrl prod
 
 * Get the excel file configuration and print the result
     ./YarnQueueManager.py --from xlsFile --xlsFile xls/Queues_YARN.xlsm -d -p
@@ -57,7 +67,7 @@ optional arguments:
     ./YarnQueueManager.py --from xmlFile --xmlFile xml/capacity-scheduler.xml  -p --to xlsFile --xlsFile xls/Queues_YARN.xlsm
 
 * Get the actual configuration from the capacity-scheduler.xml file and send it to the Ambari API
-    ./YarnQueueManager.py --from xmlFile --xmlFile xml/capacity-scheduler.xml  -p --to ambari
+    ./YarnQueueManager.py --from xmlFile --xmlFile xml/capacity-scheduler.xml  -p --to ambari --envUrl prod
 
 ### Test config
 

@@ -29,6 +29,7 @@ import argparse
 import xlsxwriter
 import requests
 import time
+import getpass
 from openpyxl import load_workbook
 from lxml import etree
 from collections import defaultdict
@@ -115,6 +116,20 @@ class Queues():
                 self.queues[queueName]['arborescence'] = ''
         except Exception as e:
             raise e
+
+    # --------------------------------------------#
+    #             set the credentials             #
+    #                                             #
+    # --------------------------------------------#
+
+    def setAmbariCredentials(self, user):
+        if user is None:
+            self.ambariConfiguration['user'] = getpass.getuser()
+        else:
+            self.ambariConfiguration['user'] = user
+        if self.ambariConfiguration['user'] == "admin":
+            exitWithError("You can not use admin user for managing Ambari, please use your personnal account")
+        self.ambariConfiguration['password'] = getpass.getpass(prompt='Please enter for your user ' + self.ambariConfiguration['user'] + ', the Ambari password: ', stream=None)
 
     # --------------------------------------------#
     #      Manage the tree leaf of the Queues     #
@@ -272,8 +287,8 @@ class Queues():
     #             from ambari rest api            #
     # --------------------------------------------#
 
-    def getQueuesFromAmbari(self, interactif=False):
-        url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['getQueuesFromAmbari']
+    def getQueuesFromAmbari(self, env, interactif=False):
+        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getQueuesFromAmbari']
         r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
         self.ambari = r.json()
         if(interactif):
@@ -285,13 +300,13 @@ class Queues():
     #               in ambari rest api            #
     # --------------------------------------------#
 
-    def putQueuesInAmbari(self):
+    def putQueuesInAmbari(self, env):
         self.getAdminViewVersionFromAmbari()
-        url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
+        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
         headers = defaultdict(dict)
         properties = defaultdict(dict)
         # Get actual configuration for increase the version
-        self.getQueuesFromAmbari()
+        self.getQueuesFromAmbari(env)
 
         # Test if those parameters are mandatory or not
         # "yarn.scheduler.capacity.root.Chats.acl_submit_applications": "*",
@@ -474,7 +489,6 @@ class Queues():
                                 sys.stdout.write("Arborescence : " + CYAN + queueName + DEFAULT + ", ")
                         print("")
                     actualArborescence = queueName
-                # if(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
                 elif(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value is not None):
                     # Find a Queue
                     queueName = str(ws.cell(row=row, column=int(configXLS['queues-name-column'])).value)
@@ -603,28 +617,32 @@ def fileReaderJSON(fileName):
 # --------------------------------------------#
 
 def parseCommandLine():
+    # read the configuration file
+    fileReaderJSON('conf/YarnQueueManager.json')
+
     validFromArgument = False
     validToArgument = False
     global vg_arguments
     parser = argparse.ArgumentParser(
         description='Yarn Queue Manager for setting or reading queues configuration', prog='YarnQueueManager')
-    parser.add_argument('-v', '--version', action='store_true', default=False, help='print the version')
-    parser.add_argument('-V', '--verbose', action='store_true', default=False, help='verbose mode')
-    parser.add_argument('-p', '--print', action='store_true', default=False, help='print configuration')
-    parser.add_argument('-d', '--dryRun', action='store_true', default=False, help='Dry run only, nothing is modified')
-    parser.add_argument('-f', '--from', type=str, help='Get capacity-scheduler configuration from [ambari|xlsFile|xmlFile|jsonFile]')
-    parser.add_argument('-t', '--to', type=str, help='Put capacity-scheduler configuration to [ambari|xlsFile|jsonFile]')
-    parser.add_argument('-e', '--xlsFile', type=str, help='Excel file name for get or put')
-    parser.add_argument('-j', '--jsonFile', type=str, help='Json file name for get or put')
-    parser.add_argument('-x', '--xmlFile', type=str, help='Xml file name for get ex : capacity-scheduler.xml')
+    parser.add_argument('--version', action='store_true', default=False, help='print the version')
+    parser.add_argument('--verbose', action='store_true', default=False, help='verbose mode')
+    parser.add_argument('--print', action='store_true', default=False, help='print configuration')
+    parser.add_argument('--dryRun', action='store_true', default=False, help='Dry run only, nothing is modified')
+    parser.add_argument('--from', type=str, choices=["ambari","xlsFile","xmlFile","jsonFile"], help='Get capacity-scheduler configuration from [ambari|xlsFile|xmlFile|jsonFile]')
+    parser.add_argument('--to', type=str, choices=["ambari","xlsFile","jsonFile"], help='Put capacity-scheduler configuration to [ambari|xlsFile|jsonFile]')
+    parser.add_argument('--envUrl', type=str, choices=sorted(vg_ambariConfig["urls"].keys()), help='Environment target for the Ambari URL [' + '|'.join(sorted(vg_ambariConfig["urls"].keys())) + '] as configured in the json configuration file')
+    parser.add_argument('--ambariUser', type=str, help='Specify an other user to use for Ambari credentials than the actual connected user')
+    parser.add_argument('--xlsFile', type=str, help='Excel file name for get or put')
+    parser.add_argument('--jsonFile', type=str, help='Json file name for get or put')
+    parser.add_argument('--xmlFile', type=str, help='Xml file name for get ex : capacity-scheduler.xml')
 
     vg_arguments = vars(parser.parse_args())
-    print(vg_arguments)
-    fileReaderJSON('conf/YarnQueueManager.json')
     # Initiate the object
     queues = Queues(vg_configuration, vg_configProperties, vg_ambariConfig)
     # Set the check boolean for knowing if we will change something or not
     queues.setDryRun(vg_arguments['dryRun'])
+
 
     if vg_arguments['version']:
         programVersion()
@@ -634,7 +652,13 @@ def parseCommandLine():
     if vg_arguments['from'] is not None:
         # Get AMBARI configuration
         if vg_arguments['from'] == 'ambari':
-            queues.getQueuesFromAmbari(True)
+            if vg_arguments['envUrl'] is not None:
+                # Set the credentials using connected username and prompting password for calling Ambari API
+                queues.setAmbariCredentials(vg_arguments['ambariUser'])
+                queues.getQueuesFromAmbari(vg_arguments['envUrl'], True)
+            else:
+                print("Arguments : \n" + str(vg_arguments))
+                exitWithError("Invalid arguments : when using <from ambari> you have to set <envUrl> parameter.")
 
         # Get EXCEL FILE configuration
         elif vg_arguments['from'] == 'xlsFile':
@@ -677,7 +701,13 @@ def parseCommandLine():
     if vg_arguments['to'] is not None and validFromArgument and queues.getDryRun() is False:
         # Put the configuration to AMBARI
         if vg_arguments['to'] == 'ambari':
-            queues.putQueuesInAmbari()
+            if vg_arguments['envUrl'] is not None:
+                # Set the credentials using connected username and prompting password for calling Ambari API
+                queues.setAmbariCredentials(vg_arguments['ambariUser'])
+                queues.putQueuesInAmbari(vg_arguments['envUrl'])
+            else:
+                print("Arguments : \n" + str(vg_arguments))
+                exitWithError("Invalid arguments : when using <to ambari> you have to set <envUrl> parameter.")
         # Put the configuration to EXCEL FILE
         elif vg_arguments['to'] == 'xlsFile':
             if vg_arguments['xlsFile'] is not None:
@@ -706,29 +736,6 @@ def parseCommandLine():
     if validFromArgument is False or validToArgument is False:
         print("Arguments : \n" + str(vg_arguments))
         exitWithError("Invalid arguments.")
-
-    # if vg_arguments['xml'] is None and vg_arguments['excel'] is not None:
-    #     # Read the XLS File and show the queues
-    #     queues.readXlsFile(vg_arguments['excel'], vg_xlsConfig)
-    #     queues.prettyPrintQueues()
-    # elif vg_arguments['xml'] is not None and vg_arguments['excel'] is not None:
-    #     # Read the XML file with the actual configuration and generate the XLS file
-    #     queues.readXmlFile(vg_arguments['xml'], vg_xlsConfig, vg_configProperties)
-    #     queues.queuesToXLS(vg_arguments['excel'], vg_xlsConfig)
-    #     queues.prettyPrintQueues()
-    # elif vg_arguments['list'] is not None:
-    #     # Read the XML file with the actual configuration and generate the XLS file
-    #     actual_config = queues.getQueuesFromAmbari(True)
-    #     if(vg_arguments['save'] is not None):
-    #         queues.saveQueuesToFile(actual_config, vg_arguments['save'])
-    # else:
-    #     print("Arguments : \n" + str(vg_arguments))
-    #     exitWithError("Invalid arguments : file and delimiter must be defined.")
-
-    # if vg_arguments['ambari']:
-    #     # Option to send to Ambari the configuration
-    #     queues.putQueuesInAmbari()
-
 
 # --------------------------------------------#
 #                     Main                    #

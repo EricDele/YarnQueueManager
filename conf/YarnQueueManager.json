@@ -81,10 +81,20 @@
     "row-max": "85"
   },
   "ambari-config": {
-    "user": "admin",
-    "password": "admin",
-    "url": "http://localhost",
-    "port": "8080",
+    "urls": {
+      "prod": {
+        "url": "http://localhost",
+        "port": "8080"
+      },
+      "int-appli": {
+        "url": "http://localhost",
+        "port": "8080"
+      },
+      "int-tech": {
+        "url": "http://localhost",
+        "port": "8080"
+      }
+    },
     "api": {
       "putQueuesInAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
       "getQueuesFromAmbari": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration",
