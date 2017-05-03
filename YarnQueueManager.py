@@ -79,6 +79,8 @@ class Queues():
         self.properties = properties
         # Ambari configuration from config file
         self.ambariConfiguration = ambariConfiguration
+        # ClusterName
+        self.clusterName = ""
         # ADMIN_VIEW version for managing the put mediaType
         self.adminViewVersion = "default"
         # Boolean to know if we could change something or just dry run
@@ -127,8 +129,8 @@ class Queues():
             self.ambariConfiguration['user'] = getpass.getuser()
         else:
             self.ambariConfiguration['user'] = user
-        if self.ambariConfiguration['user'] == "admin":
-            exitWithError("You can not use admin user for managing Ambari, please use your personnal account")
+#        if self.ambariConfiguration['user'] == "admin":
+#            exitWithError("You can not use admin user for managing Ambari, please use your personnal account")
         self.ambariConfiguration['password'] = getpass.getpass(prompt='Please enter for your user ' + self.ambariConfiguration['user'] + ', the Ambari password: ', stream=None)
 
     # --------------------------------------------#
@@ -273,14 +275,30 @@ class Queues():
     #             from ambari rest api            #
     # --------------------------------------------#
 
-    def getAdminViewVersionFromAmbari(self):
-        url = self.ambariConfiguration['url'] + ":" + self.ambariConfiguration['port'] + self.ambariConfiguration['api']['getAdminViewVersion']
+    def getAdminViewVersionFromAmbari(self, env):
+        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getAdminViewVersion']
         r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
         data = r.json()
         if data['versions'][0]['ViewVersionInfo']['view_name'] == 'ADMIN_VIEW':
             longVersion = data['versions'][0]['ViewVersionInfo']['version']
             versionDigits = longVersion.split('.')
             self.adminViewVersion = '.'.join([versionDigits[0], versionDigits[1]])
+
+    # --------------------------------------------#
+    #              Get the ClusterName            #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def getClusterNameFromAmbari(self, env):
+        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getClusterName']
+        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        data = r.json()
+        if r.status_code != 200:
+            print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+            print(json.dumps(data, indent=2))
+            exitWithError("Error in getClusterNameFromAmbari")
+        if data['items'][0]['Clusters']['cluster_name'] is not None:
+            self.clusterName = data['items'][0]['Clusters']['cluster_name']
 
     # --------------------------------------------#
     #           Get the queue configuration       #
@@ -301,7 +319,7 @@ class Queues():
     # --------------------------------------------#
 
     def putQueuesInAmbari(self, env):
-        self.getAdminViewVersionFromAmbari()
+        self.getAdminViewVersionFromAmbari(env)
         url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
         headers = defaultdict(dict)
         properties = defaultdict(dict)
@@ -655,6 +673,7 @@ def parseCommandLine():
             if vg_arguments['envUrl'] is not None:
                 # Set the credentials using connected username and prompting password for calling Ambari API
                 queues.setAmbariCredentials(vg_arguments['ambariUser'])
+                queues.getClusterNameFromAmbari(vg_arguments['envUrl'])
                 queues.getQueuesFromAmbari(vg_arguments['envUrl'], True)
             else:
                 print("Arguments : \n" + str(vg_arguments))
