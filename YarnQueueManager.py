@@ -129,8 +129,8 @@ class Queues():
             self.ambariConfiguration['user'] = getpass.getuser()
         else:
             self.ambariConfiguration['user'] = user
-#        if self.ambariConfiguration['user'] == "admin":
-#            exitWithError("You can not use admin user for managing Ambari, please use your personnal account")
+        if self.ambariConfiguration['user'] == "admin":
+            exitWithError("You can not use admin user for managing Ambari, please use your personnal account")
         self.ambariConfiguration['password'] = getpass.getpass(prompt='Please enter for your user ' + self.ambariConfiguration['user'] + ', the Ambari password: ', stream=None)
 
     # --------------------------------------------#
@@ -271,13 +271,33 @@ class Queues():
             json.dump(data, outfile)
 
     # --------------------------------------------#
+    #                 Call the api                #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def callAmbariApi(self, env, apiName, data = "", headers = ""):
+        # Create the URL
+        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api'][apiName]
+        # Check if need to replace the ClusterName in the URL
+        if self.ambariConfiguration['yourClusterName'] in url:
+            url = url.replace(self.ambariConfiguration['yourClusterName'], self.clusterName)
+        # Check the request method
+        if apiName[:3] == 'get':
+            return requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        elif apiName[:3] == 'put':
+            #print("api : " + apiName + "\nurl : " + url + "\nheaders:" + str(headers) + "\ndata :" + data)
+            return requests.put(url, headers = headers, data = data, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        else:
+            return False
+
+
+    # --------------------------------------------#
     #           Get the ADMIN_VIEW version        #
     #             from ambari rest api            #
     # --------------------------------------------#
 
     def getAdminViewVersionFromAmbari(self, env):
-        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getAdminViewVersion']
-        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        r = self.callAmbariApi(env, 'getAdminViewVersion')
         data = r.json()
         if data['versions'][0]['ViewVersionInfo']['view_name'] == 'ADMIN_VIEW':
             longVersion = data['versions'][0]['ViewVersionInfo']['version']
@@ -290,8 +310,7 @@ class Queues():
     # --------------------------------------------#
 
     def getClusterNameFromAmbari(self, env):
-        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getClusterName']
-        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        r = self.callAmbariApi(env, 'getClusterName')
         data = r.json()
         if r.status_code != 200:
             print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
@@ -299,6 +318,24 @@ class Queues():
             exitWithError("Error in getClusterNameFromAmbari")
         if data['items'][0]['Clusters']['cluster_name'] is not None:
             self.clusterName = data['items'][0]['Clusters']['cluster_name']
+        self.getClusterStatusFromAmbari(env)
+
+    # --------------------------------------------#
+    #              Get the cluster status         #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def getClusterStatusFromAmbari(self, env):
+        r = self.callAmbariApi(env, 'getClusterStatus')
+        data = r.json()
+        print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+        print(json.dumps(data, indent=2))
+        if r.status_code != 200:
+            print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+            print(json.dumps(data, indent=2))
+            exitWithError("Error in getClusterStatusFromAmbari")
+        # if data['items'][0]['Clusters']['cluster_name'] is not None:
+        #     self.clusterName = data['items'][0]['Clusters']['cluster_name']
 
     # --------------------------------------------#
     #           Get the queue configuration       #
@@ -306,8 +343,7 @@ class Queues():
     # --------------------------------------------#
 
     def getQueuesFromAmbari(self, env, interactif=False):
-        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['getQueuesFromAmbari']
-        r = requests.get(url, auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        r = self.callAmbariApi(env, 'getQueuesFromAmbari')
         self.ambari = r.json()
         if(interactif):
             print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
@@ -320,7 +356,7 @@ class Queues():
 
     def putQueuesInAmbari(self, env):
         self.getAdminViewVersionFromAmbari(env)
-        url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
+        #url = self.ambariConfiguration['urls'][env]['url'] + ":" + self.ambariConfiguration['urls'][env]['port'] + self.ambariConfiguration['api']['putQueuesInAmbari']
         headers = defaultdict(dict)
         properties = defaultdict(dict)
         # Get actual configuration for increase the version
@@ -365,7 +401,8 @@ class Queues():
         print(json.dumps(data, indent=2))
         for key in self.ambariConfiguration['headers-by-version'][self.adminViewVersion]:
             headers[key] = self.ambariConfiguration['headers-by-version'][self.adminViewVersion][key]
-        r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        #r = requests.put(url, headers=headers, data=json.dumps(data), auth=(self.ambariConfiguration['user'], self.ambariConfiguration['password']), verify=False)
+        r = self.callAmbariApi(env, 'putQueuesInAmbari', json.dumps(data), headers)
         print("Retour du PUT pour : " + r.url + "\nStatus : " + str(r.status_code))
         print(r.text)
 
