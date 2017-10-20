@@ -84,15 +84,18 @@
     "urls": {
       "prod": {
         "url": "http://localhost",
-        "port": "8080"
+        "port": "8080",
+        "adminUser" : "adminUser"
       },
       "int-appli": {
         "url": "http://localhost",
-        "port": "8080"
+        "port": "8080",
+        "adminUser" : "adminUser"
       },
       "int-tech": {
         "url": "http://localhost",
-        "port": "8080"
+        "port": "8080",
+        "adminUser" : "adminUser"
       }
     },
     "api": {
@@ -101,9 +104,10 @@
       "saveAndRefresh": "/api/v1/views/CAPACITY-SCHEDULER/versions/1.0.0/instances/AUTO_CS_INSTANCE/resources/scheduler/configuration/saveAndRefresh",
       "getAdminViewVersion": "/api/v1/views/ADMIN_VIEW",
       "getClusterName": "/api/v1/clusters",
-      "getStatus": "/api/v1/clusters/Sandbox/host_components?HostRoles/stale_configs=true&fields=HostRoles/service_name,HostRoles/state,HostRoles/host_name,HostRoles/stale_configs,&minimal_response=true",
-      "putRefreshQueues": "/api/v1/clusters/%%YourClusterName%%/requests/"
+      "getClusterStatus": "/api/v1/clusters/%%yourClusterName%%/host_components?HostRoles/stale_configs=true&fields=HostRoles/service_name,HostRoles/state,HostRoles/host_name,HostRoles/stale_configs,&minimal_response=true",
+      "putRefreshQueues": "/api/v1/clusters/%%yourClusterName%%/requests/"
     },
+    "yourClusterName": "%%yourClusterName%%",    
     "tag": "version",
     "service_config_version_note": "Updated by YarnQueueManager",
     "headers-by-version": {
@@ -128,8 +132,11 @@
       "yarn.scheduler.capacity.queue-mappings-override.enable": "false",
       "yarn.scheduler.capacity.node-locality-delay": 40,
       "yarn.scheduler.capacity.root.accessible-node-labels": "*",
-      "yarn.scheduler.capacity.root.acl_administer_queue": "yarn",
+      "yarn.scheduler.capacity.root.acl_administer_queue": "yarn,%%adminUser%%",
       "yarn.scheduler.capacity.root.capacity": 100,
+      "yarn.scheduler.capacity.root.maximum-capacity": 100,
+      "yarn.scheduler.capacity.root.ordering-policy": "fair",
+      "yarn.scheduler.capacity.root.state": "RUNNING",
       "yarn.scheduler.capacity.root.maximum-applications": 10000
     }
   }
