@@ -105,12 +105,17 @@
       "getAdminViewVersion": "/api/v1/views/ADMIN_VIEW",
       "getClusterName": "/api/v1/clusters",
       "getClusterStatus": "/api/v1/clusters/%%yourClusterName%%/host_components?HostRoles/stale_configs=true&fields=HostRoles/service_name,HostRoles/state,HostRoles/host_name,HostRoles/stale_configs,&minimal_response=true",
+      "getResourceManagerHosts": "/api/v1/clusters/%%yourClusterName%%/services/YARN/components/RESOURCEMANAGER?fields=host_components/host_name",
       "putRefreshQueues": "/api/v1/clusters/%%yourClusterName%%/requests/"
     },
     "yourClusterName": "%%yourClusterName%%",    
     "tag": "version",
     "service_config_version_note": "Updated by YarnQueueManager",
     "headers-by-version": {
+      "2.6": {
+        "Content-Type": "text/plain",
+        "X-Requested-By": "ambari"
+      },      
       "2.4": {
         "Content-Type": "text/plain",
         "X-Requested-By": "ambari"
