@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!./virtual_env/bin/python
 # coding: utf-8
 
 # ===================================================================#
@@ -319,6 +319,7 @@ class Queues():
         if data['items'][0]['Clusters']['cluster_name'] is not None:
             self.clusterName = data['items'][0]['Clusters']['cluster_name']
         self.getClusterStatusFromAmbari(env)
+        self.getResourceManagerHosts(env)
 
     # --------------------------------------------#
     #              Get the cluster status         #
@@ -336,6 +337,22 @@ class Queues():
             exitWithError("Error in getClusterStatusFromAmbari")
         # if data['items'][0]['Clusters']['cluster_name'] is not None:
         #     self.clusterName = data['items'][0]['Clusters']['cluster_name']
+
+    # --------------------------------------------#
+    #              Get the ResourceManager hosts  #
+    #             from ambari rest api            #
+    # --------------------------------------------#
+
+    def getResourceManagerHosts(self, env):
+        r = self.callAmbariApi(env, 'getResourceManagerHosts')
+        data = r.json()
+        print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+        print(json.dumps(data, indent=2))
+        if r.status_code != 200:
+            print("Retour du GET pour : " + r.url + "\nStatus : " + str(r.status_code))
+            print(json.dumps(data, indent=2))
+            exitWithError("Error in getResourceManagerHosts")
+        self.resourceManagerHostsList = ','.join([ hosts['HostRoles']['host_name'] for hosts in data['host_components']])
 
     # --------------------------------------------#
     #           Get the queue configuration       #
